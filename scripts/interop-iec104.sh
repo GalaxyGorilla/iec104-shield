@@ -178,6 +178,7 @@ PY
 run_tls_scenario() {
 	PEER=$1
 	LABEL=$2
+	UPSTREAM_TLS=$3
 	DEV_PORT=$(freeport)
 	PROXY_PORT=$(freeport)
 	CLIENT_LOG="$TMP/$LABEL-client.log"
@@ -186,19 +187,36 @@ run_tls_scenario() {
 	SBO_LOG="$TMP/$LABEL-sbo.log"
 
 	echo "== [$LABEL] outstation on 127.0.0.1:$DEV_PORT"
-	"$PEER" -mode server -host 127.0.0.1 -port "$DEV_PORT" >"$SERVER_LOG" 2>&1 &
+	if [ "$UPSTREAM_TLS" = "1" ]; then
+		"$PEER" -mode server -tls -tls-cert "$TMP/tls.crt" -tls-key "$TMP/tls.key" \
+			-host 127.0.0.1 -port "$DEV_PORT" >"$SERVER_LOG" 2>&1 &
+	else
+		"$PEER" -mode server -host 127.0.0.1 -port "$DEV_PORT" >"$SERVER_LOG" 2>&1 &
+	fi
 	SERVER_PID=$!
 	wait_for "$SERVER_LOG" READY || fail "[$LABEL] outstation did not become ready"
 
 	echo "== [$LABEL] TLS proxy owns 127.0.0.1:$PROXY_PORT"
-	"$ROOT/bin/iec104-shield" gateway \
-		--listen "127.0.0.1:$PROXY_PORT" \
-		--device "127.0.0.1:$DEV_PORT" \
-		--tls-cert "$TMP/tls.crt" \
-		--tls-key "$TMP/tls.key" \
-		--command-default deny \
-		--command-rule 'allow:45:1:1000-1500:any' \
-		--log-level info >"$PROXY_LOG" 2>&1 &
+	if [ "$UPSTREAM_TLS" = "1" ]; then
+		"$ROOT/bin/iec104-shield" gateway \
+			--listen "127.0.0.1:$PROXY_PORT" \
+			--device "127.0.0.1:$DEV_PORT" \
+			--tls-cert "$TMP/tls.crt" \
+			--tls-key "$TMP/tls.key" \
+			--device-tls-ca "$TMP/tls.crt" \
+			--command-default deny \
+			--command-rule 'allow:45:1:1000-1500:any' \
+			--log-level info >"$PROXY_LOG" 2>&1 &
+	else
+		"$ROOT/bin/iec104-shield" gateway \
+			--listen "127.0.0.1:$PROXY_PORT" \
+			--device "127.0.0.1:$DEV_PORT" \
+			--tls-cert "$TMP/tls.crt" \
+			--tls-key "$TMP/tls.key" \
+			--command-default deny \
+			--command-rule 'allow:45:1:1000-1500:any' \
+			--log-level info >"$PROXY_LOG" 2>&1 &
+	fi
 	PROXY_PID=$!
 	wait_for "$PROXY_LOG" "ready" || fail "[$LABEL] TLS proxy did not become ready"
 
@@ -272,9 +290,10 @@ PY
 run_scenario "$TMP/iec104peer" wendy512
 run_scenario "$TMP/iec104peer2" otfabric
 if [ "$HAVE_TLS" = "1" ]; then
-	run_tls_scenario "$TMP/iec104peer2" otfabric-tls
+	run_tls_scenario "$TMP/iec104peer2" otfabric-tls 0
+	run_tls_scenario "$TMP/iec104peer2" otfabric-tls-both 1
 else
-	echo "== TLS scenario skipped: openssl not available"
+	echo "== TLS scenarios skipped: openssl not available"
 fi
 
 echo "== address takeover, SBO and TLS (IEC-104, two independent peers): PASS"

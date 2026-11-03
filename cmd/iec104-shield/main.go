@@ -74,6 +74,10 @@ type cliFlags struct {
 	tlsCert      *string
 	tlsKey       *string
 	tlsClientCA  *string
+	devTLSCA     *string
+	devTLSServer *string
+	devTLSCert   *string
+	devTLSKey    *string
 	metricsAddr  *string
 	logLevel     *string
 	logFormat    *string
@@ -102,6 +106,10 @@ func register(fs *pflag.FlagSet) cliFlags {
 	c.tlsCert = fs.String("tls-cert", "", "master-facing TLS server certificate (PEM); requires --tls-key")
 	c.tlsKey = fs.String("tls-key", "", "master-facing TLS server private key (PEM); requires --tls-cert")
 	c.tlsClientCA = fs.String("tls-client-ca", "", "PEM CA bundle for required client certificates (mTLS)")
+	c.devTLSCA = fs.String("device-tls-ca", "", "PEM CA bundle for the outstation TLS certificate (empty = system roots)")
+	c.devTLSServer = fs.String("device-tls-server-name", "", "override the outstation TLS server-name check")
+	c.devTLSCert = fs.String("device-tls-cert", "", "client certificate for upstream mTLS (PEM); requires --device-tls-key")
+	c.devTLSKey = fs.String("device-tls-key", "", "client key for upstream mTLS (PEM); requires --device-tls-cert")
 	c.metricsAddr = fs.String("metrics-addr", "", "Prometheus metrics listen address (e.g. 127.0.0.1:9204)")
 	c.logLevel = fs.String("log-level", "info", "log level: debug, info, warn, error")
 	c.logFormat = fs.String("log-format", "console", "log format: console or json")
@@ -137,6 +145,14 @@ func flagsConfig(c cliFlags) (*config.Config, error) {
 			Cert:     *c.tlsCert,
 			Key:      *c.tlsKey,
 			ClientCA: *c.tlsClientCA,
+		}
+	}
+	if *c.devTLSCA != "" || *c.devTLSServer != "" || *c.devTLSCert != "" || *c.devTLSKey != "" {
+		dev.DeviceTLS = &config.DeviceTLSConfig{
+			CACert:     *c.devTLSCA,
+			ServerName: *c.devTLSServer,
+			Cert:       *c.devTLSCert,
+			Key:        *c.devTLSKey,
 		}
 	}
 	if *c.commandDef != "" || len(*c.commandRules) > 0 {

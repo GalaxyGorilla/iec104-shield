@@ -29,14 +29,16 @@ func main() {
 	commonAddr := flag.Uint("ca", 1, "common address")
 	allowIOA := flag.Uint("allow-ioa", 1000, "allowed command IOA")
 	denyIOA := flag.Uint("deny-ioa", 2000, "command IOA expected to be denied")
-	tlsMode := flag.Bool("tls", false, "connect to the proxy over TLS")
-	tlsCA := flag.String("tls-ca", "", "PEM CA bundle for the proxy certificate")
+	tlsMode := flag.Bool("tls", false, "use TLS (client: to the proxy; server: on the listener)")
+	tlsCA := flag.String("tls-ca", "", "PEM CA bundle for the peer certificate")
+	tlsCert := flag.String("tls-cert", "", "PEM server certificate (server mode)")
+	tlsKey := flag.String("tls-key", "", "PEM server key (server mode)")
 	flag.Parse()
 
 	ca := uint16(*commonAddr)
 	switch *mode {
 	case "server":
-		runServer(*host, *port, ca)
+		runServer(*host, *port, ca, *tlsMode, *tlsCert, *tlsKey)
 	case "client":
 		runClient(*host, *port, ca, uint32(*allowIOA), uint32(*denyIOA), *tlsMode, *tlsCA)
 	case "sbo-client":
@@ -47,7 +49,7 @@ func main() {
 	}
 }
 
-func runServer(host string, port int, ca uint16) {
+func runServer(host string, port int, ca uint16, useTLS bool, certFile, keyFile string) {
 	mux := server.NewMux()
 	mux.HandleFunc(asdu.C_IC_NA_1, func(s *server.Session, req *asdu.ASDU) {
 		fmt.Printf("INTERROGATION ca=%d\n", req.CommonAddr)
@@ -68,7 +70,7 @@ func runServer(host string, port int, ca uint16) {
 		_ = s.Terminate(req)
 	})
 
-	srv, err := server.New(mux,
+	opts := []server.Option{
 		server.WithCommonAddrs(asdu.CommonAddr(ca)),
 		server.WithStateHandler(func(s *server.Session, state iec104.State, _ error) {
 			if state != iec104.StateStarted {
@@ -79,7 +81,22 @@ func runServer(host string, port int, ca uint16) {
 				_ = s.Send(s.Context(), asdu.New(asdu.CauseSpontaneous, asdu.CommonAddr(ca),
 					asdu.SinglePoint{IOA: 100, Value: true}))
 			}()
-		}))
+		}),
+	}
+	var serverTLS *tls.Config
+	if useTLS {
+		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+		if err != nil {
+			fmt.Printf("TLS_CONFIG_ERROR %v\n", err)
+			os.Exit(1)
+		}
+		serverTLS = &tls.Config{
+			Certificates: []tls.Certificate{cert},
+			MinVersion:   tls.VersionTLS12,
+		}
+		opts = append(opts, server.WithTLS(serverTLS))
+	}
+	srv, err := server.New(mux, opts...)
 	if err != nil {
 		fmt.Printf("SERVER_ERROR %v\n", err)
 		os.Exit(1)
@@ -89,6 +106,11 @@ func runServer(host string, port int, ca uint16) {
 	if err != nil {
 		fmt.Printf("LISTEN_ERROR %v\n", err)
 		os.Exit(1)
+	}
+	if serverTLS != nil {
+		// Server.Serve takes ownership of the listener but does not wrap
+		// it; WithTLS only affects ListenAndServe. Wrap it here.
+		ln = tls.NewListener(ln, serverTLS)
 	}
 	fmt.Println("READY")
 	go func() { _ = srv.Serve(ln) }()

@@ -89,5 +89,8 @@ func restartRequired(gw *Gateway, dev config.Device) []string {
 	if !reflect.DeepEqual(gw.tlsSpec, dev.TLS) {
 		msgs = append(msgs, "tls block changed")
 	}
+	if !reflect.DeepEqual(gw.deviceTLSSpec, dev.DeviceTLS) {
+		msgs = append(msgs, "device_tls block changed")
+	}
 	return msgs
 }

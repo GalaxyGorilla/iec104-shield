@@ -55,6 +55,11 @@ type Device struct {
 	// clients must present a certificate signed by that CA (mTLS).
 	TLS *TLSConfig `yaml:"tls"`
 
+	// DeviceTLS, when set, secures the upstream leg with TLS (client side):
+	// the proxy dials the outstation over TLS instead of plain TCP. This is
+	// the far side of a secured line or a TLS-capable RTU.
+	DeviceTLS *DeviceTLSConfig `yaml:"device_tls"`
+
 	// ReadOnly blocks every write-class ASDU (commands, clock sync,
 	// reset, parameter and file transfer). Interrogation, counter
 	// interrogation, read and test commands remain available.
@@ -95,6 +100,21 @@ type TLSConfig struct {
 	// ClientCA, when set, is a PEM file of CA certificates; clients must
 	// present a certificate signed by one of them (mTLS).
 	ClientCA string `yaml:"client_ca"`
+}
+
+// DeviceTLSConfig configures the upstream (outstation-side) TLS leg: the
+// proxy acts as the TLS client when dialing DeviceAddr.
+type DeviceTLSConfig struct {
+	// CACert, when set, is a PEM file of CA certificates used to verify the
+	// outstation certificate. Empty = system roots.
+	CACert string `yaml:"ca_cert"`
+	// ServerName overrides the TLS server-name check (use when the
+	// outstation presents a certificate for a different name).
+	ServerName string `yaml:"server_name"`
+	// Cert and Key, when set together, present a client certificate to the
+	// outstation (mTLS on the upstream leg).
+	Cert string `yaml:"cert"`
+	Key  string `yaml:"key"`
 }
 
 // CommandPolicy is the scoped command policy. Default is the verdict for a
@@ -368,6 +388,11 @@ func (d *Device) validate(i int, seen map[string]string) error {
 			return fail("tls: %v", err)
 		}
 	}
+	if d.DeviceTLS != nil {
+		if err := d.DeviceTLS.validate(); err != nil {
+			return fail("device_tls: %v", err)
+		}
+	}
 	if d.K < 1 || d.K > 32767 {
 		return fail("k %d outside 1..32767", d.K)
 	}
@@ -400,6 +425,28 @@ func (t *TLSConfig) validate() error {
 		pool := x509.NewCertPool()
 		if !pool.AppendCertsFromPEM(pem) {
 			return fmt.Errorf("client_ca %s: no valid certificates found", t.ClientCA)
+		}
+	}
+	return nil
+}
+
+func (t *DeviceTLSConfig) validate() error {
+	if (t.Cert == "") != (t.Key == "") {
+		return errors.New("cert and key must be set together")
+	}
+	if t.Cert != "" {
+		if _, err := tls.LoadX509KeyPair(t.Cert, t.Key); err != nil {
+			return fmt.Errorf("cert/key: %w", err)
+		}
+	}
+	if t.CACert != "" {
+		pem, err := os.ReadFile(t.CACert)
+		if err != nil {
+			return fmt.Errorf("ca_cert: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(pem) {
+			return fmt.Errorf("ca_cert %s: no valid certificates found", t.CACert)
 		}
 	}
 	return nil

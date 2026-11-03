@@ -5,7 +5,9 @@
 # improves; lower one only with a comment explaining why.
 ALL                82
 cmd/iec104-shield  70
-internal/config    75
+# config sits near 75%; the TLS success path is exercised in the proxy
+# package with certificate fixtures, so keep this floor one point lower.
+internal/config    74
 internal/iec104    72
 internal/observ    88
 internal/policy    92

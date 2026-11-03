@@ -277,3 +277,27 @@ devices:
 		}
 	}
 }
+
+func TestDeviceTLSValidation(t *testing.T) {
+	cases := []string{
+		`
+devices:
+  - listen_addr: "127.0.0.1:2404"
+    device_addr: "127.0.0.1:2405"
+    device_tls:
+      cert: "/nonexistent/client.pem"
+`,
+		`
+devices:
+  - listen_addr: "127.0.0.1:2404"
+    device_addr: "127.0.0.1:2405"
+    device_tls:
+      ca_cert: "/nonexistent/ca.pem"
+`,
+	}
+	for _, in := range cases {
+		if _, err := Decode(strings.NewReader(in)); err == nil {
+			t.Fatalf("invalid device_tls config accepted:\n%s", in)
+		}
+	}
+}

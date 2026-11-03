@@ -104,9 +104,14 @@ peer behavior, not line coverage. Work in this order.
   connection. A plain client is refused.
 - Unit tests for TLS and mTLS; the interop suite runs the second stack over
   TLS and checks a plain-client rejection.
-- TLS is listener-bound: a changed `tls` block is reported as restart-only by
-  SIGHUP reload.
-- Upstream TLS (option C) and IEC 62351-5 remain.
+- Upstream TLS (option C): `device_tls` with `ca_cert`, `server_name` and
+  optional client certificate/key for upstream mTLS. The handshake is eager,
+  so a bad certificate fails the dial and closes the master session.
+- TLS is listener-bound: changed `tls`/`device_tls` blocks are reported as
+  restart-only by SIGHUP reload.
+- Unit tests for master TLS, mTLS, upstream TLS, upstream mTLS and a bad
+  upstream CA; interop runs master-only and both-leg TLS.
+- IEC 62351-5 ASDU authentication remains.
 
 ## Done — design decisions
 
@@ -138,9 +143,8 @@ peer behavior, not line coverage. Work in this order.
    spontaneous data, select-before-operate, clock sync, redundant channels.
 2. **Real IP takeover.** Lab interface or two NICs; ARP/NDP, gratuitous ARP,
    duplicate-address detection, switch CAM, privileged port 2404.
-3. **Upstream TLS and IEC 62351-5.** Option C from
-   `docs/iec62351-posture.md`: a `device_tls` block for a TLS RTU or a
-   two-proxy secured line. IEC 62351-5 ASDU authentication stays later.
+3. **IEC 62351-5 ASDU authentication.** Only if a design partner requires
+   it; the TLS posture is in `docs/iec62351-posture.md`.
 4. **HA implementation.** Active/standby per `docs/ha-design.md`: shared
    service address, passive standby, no state replication, no command replay.
 5. **Multi-master.** If an RTU accepts one connection, either enforce

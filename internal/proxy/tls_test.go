@@ -203,3 +203,104 @@ func TestTLSGatewayRequiresClientCertificate(t *testing.T) {
 		t.Fatalf("mTLS interrogation: %v", err)
 	}
 }
+
+func startTLSTestOutstation(t *testing.T, pki *testPKI, requireClient bool) *fakeOutstation {
+	t.Helper()
+	certPEM, keyPEM := pki.issue(t, "127.0.0.1", true)
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS12,
+	}
+	if requireClient {
+		pool := x509.NewCertPool()
+		pool.AppendCertsFromPEM(pki.pem)
+		cfg.ClientCAs = pool
+		cfg.ClientAuth = tls.RequireAndVerifyClientCert
+	}
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return startFakeOn(t, tls.NewListener(ln, cfg), replyInterrogation, nil)
+}
+
+func TestUpstreamTLS(t *testing.T) {
+	pki := newTestPKI(t)
+	fake := startTLSTestOutstation(t, pki, false)
+	defer fake.close()
+	dir := t.TempDir()
+	caFile := writeTestFile(t, dir, "ca.crt", pki.pem)
+
+	dev := testDevice(fake.addr())
+	dev.DeviceTLS = &config.DeviceTLSConfig{CACert: caFile, ServerName: "127.0.0.1"}
+	addr, stop := startGateway(t, dev)
+	defer stop()
+
+	m := dialMaster(t, addr)
+	defer m.close()
+	if err := m.sendI(interrogation(1)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.readI(); err != nil {
+		t.Fatalf("interrogation over upstream TLS: %v", err)
+	}
+}
+
+func TestUpstreamTLSBadCA(t *testing.T) {
+	pki := newTestPKI(t)
+	fake := startTLSTestOutstation(t, pki, false)
+	defer fake.close()
+	other := newTestPKI(t)
+	dir := t.TempDir()
+	caFile := writeTestFile(t, dir, "other-ca.crt", other.pem)
+
+	dev := testDevice(fake.addr())
+	dev.DeviceTLS = &config.DeviceTLSConfig{CACert: caFile, ServerName: "127.0.0.1"}
+	addr, stop := startGateway(t, dev)
+	defer stop()
+
+	conn, err := net.DialTimeout("tcp", addr, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	var b [1]byte
+	if _, err := conn.Read(b[:]); err == nil {
+		t.Fatal("master stayed open after the upstream TLS certificate failed")
+	}
+}
+
+func TestUpstreamTLSClientCertificate(t *testing.T) {
+	pki := newTestPKI(t)
+	fake := startTLSTestOutstation(t, pki, true)
+	defer fake.close()
+	dir := t.TempDir()
+	caFile := writeTestFile(t, dir, "ca.crt", pki.pem)
+	clientCertPEM, clientKeyPEM := pki.issue(t, "proxy", false)
+	certFile := writeTestFile(t, dir, "client.crt", clientCertPEM)
+	keyFile := writeTestFile(t, dir, "client.key", clientKeyPEM)
+
+	dev := testDevice(fake.addr())
+	dev.DeviceTLS = &config.DeviceTLSConfig{
+		CACert:     caFile,
+		ServerName: "127.0.0.1",
+		Cert:       certFile,
+		Key:        keyFile,
+	}
+	addr, stop := startGateway(t, dev)
+	defer stop()
+
+	m := dialMaster(t, addr)
+	defer m.close()
+	if err := m.sendI(interrogation(1)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.readI(); err != nil {
+		t.Fatalf("interrogation over upstream mTLS: %v", err)
+	}
+}

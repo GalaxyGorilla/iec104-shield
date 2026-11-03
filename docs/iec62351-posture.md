@@ -1,8 +1,8 @@
 # IEC 62351 posture
 
-**Status:** option B (terminate TLS on the master leg) is implemented in
-v0.1. Option C (upstream TLS) and IEC 62351-5 are not. This note records the
-decision and the remaining work.
+**Status:** options B (terminate TLS on the master leg) and C (upstream TLS)
+are implemented in v0.1. IEC 62351-5 is not. This note records the decision
+and the remaining work.
 
 ## The constraint
 
@@ -74,8 +74,11 @@ gap; the roadmap records it as a later phase.
 | 4 | A bad certificate or wrong CA fails closed and is audited | met (handshake failure audit `tls_handshake`) |
 | 5 | Command policy and negative confirmation are unchanged | met (same proxy path) |
 | 6 | `validate` rejects missing/unreadable certificate files | met (`TestTLSValidation`, flags test) |
-| 7 | `selftest` uses the configured TLS path | not applicable to option B: selftest probes the plaintext RTU leg; it must use TLS for option C |
+| 7 | `selftest` uses the configured TLS path | not applicable to option B: selftest probes the plaintext RTU leg; upstream TLS uses the same eager dial path |
 | 8 | Interop runs with at least one independent master over TLS | met (`otfabric-tls` scenario) |
+| 9 | Upstream TLS verifies the outstation and fails closed on a bad CA | met (`TestUpstreamTLS`, `TestUpstreamTLSBadCA`) |
+| 10 | Upstream mTLS presents a client certificate | met (`TestUpstreamTLSClientCertificate`) |
+| 11 | Both legs can be TLS at the same time | met (`otfabric-tls-both` interop) |
 
 ## Open questions for the design partner
 

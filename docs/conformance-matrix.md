@@ -104,7 +104,9 @@ can be checked without pretending to reproduce the standard's numbering.
 | mTLS when `client_ca` is configured | `TestTLSGatewayRequiresClientCertificate` | covered |
 | Plain client refused before the upstream dial | `TestTLSGateway`, interop | covered |
 | Certificate/key validation | `TestTLSValidation`, flags test | covered |
-| Upstream TLS leg (option C) | none | not implemented |
+| Upstream TLS leg (option C) | `TestUpstreamTLS`, `TestUpstreamTLSBadCA` | covered |
+| Upstream mTLS | `TestUpstreamTLSClientCertificate` | covered |
+| Both legs TLS at once | `otfabric-tls-both` interop | covered |
 | IEC 62351-5 ASDU authentication | none | out of scope for v0.1 |
 
 ## Interop
@@ -115,7 +117,8 @@ can be checked without pretending to reproduce the standard's numbering.
 | Same scenario with a second independent stack | `scripts/interop-iec104.sh` with `otfabric/go-iec104` | covered |
 | Physical RTU timing, retransmission, vendor profiles | none | lab |
 | Master-leg IEC 62351-3 TLS and plain-client rejection | `scripts/interop-iec104.sh` | covered |
-| Upstream TLS and IEC 62351-5 authentication | none | not implemented |
+| Both-leg TLS | `scripts/interop-iec104.sh` (`otfabric-tls-both`) | covered |
+| IEC 62351-5 authentication | none | not implemented |
 | Redundancy groups | none | out of scope for v0.1 |
 
 ## How to run

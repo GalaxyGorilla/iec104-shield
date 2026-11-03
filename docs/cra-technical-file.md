@@ -64,7 +64,7 @@ master ──► old RTU address ──► iec104-shield ──► RTU at new ad
 |---|---|---|
 | Unauthorized breaker command | Default-deny write policy, deny-overrides, negative confirmation | Misconfigured explicit allow rules remain the operator's responsibility |
 | Replay or spoofed master | IP allow-list; optional master-leg TLS/mTLS | No IEC 62351-5 ASDU authentication; network segmentation still required |
-| Eavesdropping / MITM on the master leg | IEC 62351-3 TLS (option B) | RTU leg remains plaintext; upstream TLS not implemented |
+| Eavesdropping / MITM | IEC 62351-3 TLS on the master leg (option B) and optionally the upstream leg (option C) | A deployment that leaves a leg plaintext remains exposed |
 | DoS against the RTU | Connection cap, rate limit, pacing | A determined master can still consume its own session |
 | Compromised appliance | systemd hardening, minimal capabilities, no shell | Single box is a single point of failure; no HA |
 | Supply-chain vulnerability | Pinned modules, govulncheck, SBOM | Signed releases and reproducible-build attestations still to add |
@@ -102,8 +102,8 @@ master ──► old RTU address ──► iec104-shield ──► RTU at new ad
 
 ## 9. Known gaps before a conformity claim
 
-- No IEC 62351-5 ASDU authentication and no upstream TLS leg. Master-leg
-  IEC 62351-3 TLS is implemented.
+- No IEC 62351-5 ASDU authentication. IEC 62351-3 TLS is available on either
+  leg but is not mandatory.
 - No physical RTU lab or utility conformance suite.
 - No real ARP/NDP takeover validation; the current proof is loopback only.
 - No HA pair or state replication.

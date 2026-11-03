@@ -118,12 +118,14 @@ func metricsOrNop(m Metrics) Metrics {
 
 // Gateway is one listener<->outstation pair.
 type Gateway struct {
-	cfg     Config
-	log     *zap.SugaredLogger
-	met     Metrics
-	audit   *observ.Audit
-	tlsCfg  *tls.Config
-	tlsSpec *config.TLSConfig
+	cfg           Config
+	log           *zap.SugaredLogger
+	met           Metrics
+	audit         *observ.Audit
+	tlsCfg        *tls.Config
+	tlsSpec       *config.TLSConfig
+	deviceTLSCfg  *tls.Config
+	deviceTLSSpec *config.DeviceTLSConfig
 
 	// rt is swapped whole by a reload. Readers take a copy under RLock and
 	// never hold the lock across I/O.
@@ -153,6 +155,10 @@ func New(dev config.Device, log *zap.SugaredLogger, met Metrics, audit *observ.A
 	if err != nil {
 		return nil, err
 	}
+	deviceTLSCfg, err := deviceTLSConfigFor(dev)
+	if err != nil {
+		return nil, err
+	}
 	if log == nil {
 		log = zap.NewNop().Sugar()
 	}
@@ -162,13 +168,15 @@ func New(dev config.Device, log *zap.SugaredLogger, met Metrics, audit *observ.A
 			ListenAddr: dev.ListenAddr,
 			DeviceAddr: dev.DeviceAddr,
 		},
-		log:     log,
-		met:     metricsOrNop(met),
-		audit:   audit,
-		tlsCfg:  tlsCfg,
-		tlsSpec: dev.TLS,
-		rt:      rt,
-		conns:   make(map[net.Conn]struct{}),
+		log:           log,
+		met:           metricsOrNop(met),
+		audit:         audit,
+		tlsCfg:        tlsCfg,
+		tlsSpec:       dev.TLS,
+		deviceTLSCfg:  deviceTLSCfg,
+		deviceTLSSpec: dev.DeviceTLS,
+		rt:            rt,
+		conns:         make(map[net.Conn]struct{}),
 	}, nil
 }
 
@@ -298,7 +306,16 @@ func (g *Gateway) handle(client net.Conn) {
 	g.record(observ.AuditEvent{Event: "connection", Device: g.cfg.Name, Client: clientName, Reason: "accepted"})
 
 	rt := g.runtime()
-	device, err := net.DialTimeout("tcp", g.cfg.DeviceAddr, rt.dialTimeout)
+	var device net.Conn
+	var err error
+	if g.deviceTLSCfg != nil {
+		// Eager TLS dial: the handshake is inside the dial deadline, so a
+		// half-open TLS connection never looks like a live RTU.
+		dialer := &net.Dialer{Timeout: rt.dialTimeout}
+		device, err = tls.DialWithDialer(dialer, "tcp", g.cfg.DeviceAddr, g.deviceTLSCfg)
+	} else {
+		device, err = net.DialTimeout("tcp", g.cfg.DeviceAddr, rt.dialTimeout)
+	}
 	if err != nil {
 		g.met.IncUpstreamError()
 		g.log.Warnf("iec104 gateway %s: upstream %s: %v", g.cfg.Name, g.cfg.DeviceAddr, err)

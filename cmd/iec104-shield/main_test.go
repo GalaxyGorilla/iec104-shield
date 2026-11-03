@@ -405,3 +405,14 @@ func TestFlagsTLSRequiresPair(t *testing.T) {
 		t.Fatalf("cert without key: %v", err)
 	}
 }
+
+func TestFlagsDeviceTLSRequiresPair(t *testing.T) {
+	c := parseFlags(t,
+		"--listen", "127.0.0.1:2404",
+		"--device", "127.0.0.1:2405",
+		"--device-tls-cert", "/nonexistent/client.pem",
+	)
+	if _, err := flagsConfig(c); err == nil || !strings.Contains(err.Error(), "cert and key") {
+		t.Fatalf("device cert without key: %v", err)
+	}
+}

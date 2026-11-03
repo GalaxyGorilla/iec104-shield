@@ -45,6 +45,14 @@ devices:
     #   key: "/etc/iec104-shield/server.key"
     #   client_ca: "/etc/iec104-shield/clients-ca.crt"
 
+    # Optional upstream TLS (option C): dial the RTU over TLS. Leave
+    # ca_cert empty to use the system roots; add cert/key for upstream mTLS.
+    # device_tls:
+    #   ca_cert: "/etc/iec104-shield/rtu-ca.crt"
+    #   server_name: "rtu.example"
+    #   cert: "/etc/iec104-shield/proxy-client.crt"
+    #   key: "/etc/iec104-shield/proxy-client.key"
+
     # Shielding for a fragile RTU. rate_per_sec bounds forwarded
     # master-to-outstation I-frames across all masters; an over-rate request
     # gets a negative activation confirmation and never reaches the RTU.

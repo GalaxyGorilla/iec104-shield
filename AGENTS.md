@@ -100,15 +100,16 @@ under `test/peers/iec104peer` and is deliberately not part of the main module.
 
 v0.1 is a working software prototype with interop against two independent
 IEC-104 stacks (`wendy512/iec104` and `otfabric/go-iec104`), SBO,
-spontaneous-data and outstation-restart coverage, master-facing IEC 62351-3
-TLS with optional mTLS, a loopback address-takeover proof, SIGHUP reload
+spontaneous-data and outstation-restart coverage, IEC 62351-3 TLS on the
+master and/or upstream leg with optional mTLS, a loopback address-takeover
+proof, SIGHUP reload
 of the command policy, allow-list and limits, and token-bucket rate limiting
 plus shared pacing for master-to-outstation I-frames. A listener or
 outstation address change is reported as restart-only. Packaging includes a
 hardened systemd unit with SIGHUP reload, SBOM/grype release gates, and a CRA
 technical-file outline. `docs/conformance-matrix.md` maps behaviour to tests
-and names the remaining lab gaps. The next protocol slice is terminating TLS
-on the master leg (`docs/iec62351-posture.md`); the HA shape is
-active/standby without state replication (`docs/ha-design.md`). It is not yet
+and names the remaining lab gaps. IEC 62351-3 TLS is implemented on both legs;
+the next protocol slice is IEC 62351-5 (`docs/iec62351-posture.md`); the HA
+shape is active/standby without state replication (`docs/ha-design.md`). It is not yet
 validated against a physical RTU, IEC 62351 TLS/authentication, real ARP/NDP
 takeover, or an IEC-104 conformance suite.

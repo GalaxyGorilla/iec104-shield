@@ -217,9 +217,21 @@ or, in flags mode:
 TLS 1.2 is the minimum. With `client_ca`, a client certificate signed by that
 CA is required. The handshake completes **before** the proxy dials the RTU, so
 a plain or unauthenticated client cannot cause an upstream connection. TLS is
-listener-bound: changing it needs a restart, not SIGHUP. The upstream TLS leg
-(option C in [docs/iec62351-posture.md](docs/iec62351-posture.md)) is not
-implemented yet.
+listener-bound: changing it needs a restart, not SIGHUP.
+
+The upstream leg can be TLS too (option C in
+[docs/iec62351-posture.md](docs/iec62351-posture.md)):
+
+```yaml
+    device_tls:
+      ca_cert: "/etc/iec104-shield/rtu-ca.crt"   # empty = system roots
+      server_name: "rtu.example"                 # optional override
+      cert: "/etc/iec104-shield/proxy-client.crt" # optional upstream mTLS
+      key: "/etc/iec104-shield/proxy-client.key"
+```
+
+The upstream handshake is eager: a bad certificate fails the dial and closes
+the master session. Both legs can be TLS at the same time.
 
 ## Address takeover
 
@@ -239,7 +251,7 @@ no bypass in v0.1.
 ## What is not implemented yet
 
 - IEC 60870-5-101 serial and serial-to-IP converters.
-- IEC 62351-5 ASDU authentication and the upstream TLS leg.
+- IEC 62351-5 ASDU authentication.
 - DNP3.
 - Redundancy groups, multi-master multiplexing and HA.
 - File-transfer content inspection.
@@ -277,9 +289,10 @@ in front of it, and drives it with an independent master. It checks:
 - after the proxy stops, the old address refuses connections.
 
 A third run points the second stack at the TLS listener and checks the same
-commands, plus a plain client being refused. `smoke-reload` proves the real
-binary applies a rewritten policy on SIGHUP and keeps the running policy when
-the new file is invalid.
+commands, plus a plain client being refused. A fourth run uses TLS on both the
+master and outstation legs. `smoke-reload` proves the real binary applies a
+rewritten policy on SIGHUP and keeps the running policy when the new file is
+invalid.
 
 See [TESTING.md](TESTING.md).
 

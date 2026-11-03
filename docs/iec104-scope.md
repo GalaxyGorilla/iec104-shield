@@ -102,8 +102,8 @@ negative confirmation itself.
 ## Explicit non-goals for v0.1
 
 - IEC 60870-5-101 serial and serial-to-IP gateways.
-- Upstream IEC 62351-3 TLS (option C) and IEC 62351-5 application-layer
-  authentication. Master-leg TLS is implemented.
+- IEC 62351-5 application-layer authentication. Master-leg and upstream TLS
+  are implemented.
 - DNP3 Secure Authentication / IEEE 1815.
 - Redundancy groups and multi-master arbitration.
 - Full IEC-104 conformance (t2/t3/w tuning, file transfer, all private types).
