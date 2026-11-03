@@ -104,6 +104,9 @@ peer behavior, not line coverage. Work in this order.
 - Release SBOMs (SPDX + CycloneDX) and a grype HIGH-or-worse gate in
   `scripts/sbom.sh` / `make security`.
 - CRA technical-file working outline in `docs/cra-technical-file.md`.
+- Operations runbook in `examples/operations.md`: install, validate, SIGHUP
+  reload, shielding tuning, audit/metrics, fail-closed behaviour, upgrade and
+  troubleshooting.
 - Signed release artefacts and an update-signing key remain in Next.
 
 ## Next

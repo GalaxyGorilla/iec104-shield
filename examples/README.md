@@ -4,6 +4,7 @@
 | --- | --- |
 | [gateway.md](gateway.md) | One master, one RTU, one proxy. The default deployment. |
 | [address-takeover.md](address-takeover.md) | The proxy owns the RTU's old address; the RTU moves behind it. |
+| [operations.md](operations.md) | Install, validate, reload, tune shielding, audit, upgrade, troubleshoot. |
 
 The root [README](../README.md) has the config reference and policy semantics.
 The design reasoning and open risks are in
