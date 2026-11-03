@@ -1,7 +1,12 @@
 package main
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"io"
 	"net"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -166,5 +171,177 @@ func TestProbeDialError(t *testing.T) {
 	_ = ln.Close()
 	if err := probe(addr, 100*time.Millisecond); err == nil {
 		t.Fatal("probe succeeded against a closed port")
+	}
+}
+
+func TestUsage(t *testing.T) {
+	var buf bytes.Buffer
+	usage(&buf)
+	if !strings.Contains(buf.String(), "IEC 60870-5-104") {
+		t.Fatalf("usage = %q", buf.String())
+	}
+}
+
+func TestRunValidateTo(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/gateway.yaml"
+	if err := os.WriteFile(path, []byte(`
+devices:
+  - listen_addr: "127.0.0.1:2404"
+    device_addr: "127.0.0.1:2405"
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var out, errOut bytes.Buffer
+	if rc := runValidateTo([]string{"--config", path}, &out, &errOut); rc != 0 {
+		t.Fatalf("rc = %d, stderr = %q", rc, errOut.String())
+	}
+	if !strings.Contains(out.String(), "ok: 1 device(s)") {
+		t.Fatalf("stdout = %q", out.String())
+	}
+
+	out.Reset()
+	errOut.Reset()
+	if rc := runValidateTo([]string{"--config", dir + "/missing.yaml"}, &out, &errOut); rc != 1 {
+		t.Fatalf("missing config rc = %d", rc)
+	}
+	if !strings.Contains(errOut.String(), "no such file") {
+		t.Fatalf("stderr = %q", errOut.String())
+	}
+}
+
+func TestRunValidateJSON(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if rc := runValidateTo([]string{
+		"--listen", "127.0.0.1:2404",
+		"--device", "127.0.0.1:2405",
+		"--json",
+	}, &out, &errOut); rc != 0 {
+		t.Fatalf("rc = %d, stderr = %q", rc, errOut.String())
+	}
+	var res checkResult
+	if err := json.Unmarshal(out.Bytes(), &res); err != nil {
+		t.Fatalf("json: %v (%q)", err, out.String())
+	}
+	if !res.OK {
+		t.Fatalf("result = %+v", res)
+	}
+}
+
+func startTestFRResponder(t *testing.T) (string, func()) {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func() {
+				defer conn.Close()
+				for {
+					f, err := iec104.ReadFrame(conn)
+					if err != nil {
+						return
+					}
+					if f.Type == iec104.UFrame && f.U == iec104.UTestFRActive {
+						_, _ = conn.Write(iec104.NewU(iec104.UTestFRConfirm))
+						return
+					}
+				}
+			}()
+		}
+	}()
+	return ln.Addr().String(), func() { _ = ln.Close(); <-done }
+}
+
+func TestRunSelftestTo(t *testing.T) {
+	addr, stop := startTestFRResponder(t)
+	defer stop()
+	var out, errOut bytes.Buffer
+	rc := runSelftestTo([]string{
+		"--listen", "127.0.0.1:2404",
+		"--device", addr,
+		"--probe",
+	}, &out, &errOut)
+	if rc != 0 {
+		t.Fatalf("rc = %d, stderr = %q", rc, errOut.String())
+	}
+	if !strings.Contains(out.String(), addr+": ok") {
+		t.Fatalf("stdout = %q", out.String())
+	}
+}
+
+func TestRunSelftestFailure(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr := ln.Addr().String()
+	_ = ln.Close()
+	var out, errOut bytes.Buffer
+	rc := runSelftestTo([]string{
+		"--listen", "127.0.0.1:2404",
+		"--device", addr,
+		"--probe",
+	}, &out, &errOut)
+	if rc != 1 {
+		t.Fatalf("rc = %d", rc)
+	}
+	if !strings.Contains(out.String(), "FAIL") {
+		t.Fatalf("stdout = %q", out.String())
+	}
+}
+
+func TestRunGatewayContext(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	listenAddr := ln.Addr().String()
+	_ = ln.Close()
+
+	dir := t.TempDir()
+	path := dir + "/gateway.yaml"
+	if err := os.WriteFile(path, []byte(`
+devices:
+  - name: test
+    listen_addr: "`+listenAddr+`"
+    device_addr: "127.0.0.1:1"
+    read_only: true
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan int, 1)
+	go func() { done <- runGatewayContext(ctx, []string{"--config", path}, io.Discard, io.Discard) }()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		conn, err := net.DialTimeout("tcp", listenAddr, 100*time.Millisecond)
+		if err == nil {
+			_ = conn.Close()
+			break
+		}
+		if time.Now().After(deadline) {
+			cancel()
+			t.Fatalf("gateway did not bind %s: %v", listenAddr, err)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	cancel()
+	select {
+	case rc := <-done:
+		if rc != 0 {
+			t.Fatalf("gateway rc = %d", rc)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("gateway did not stop after context cancellation")
 	}
 }

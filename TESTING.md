@@ -45,8 +45,12 @@ go test ./internal/iec104 -run '^$' -fuzz FuzzParseASDU -fuzztime 10s
 It asserts:
 
 - the interrogation returns a single point;
+- device-initiated spontaneous data (cause 3) crosses the proxy, both on the
+  plain master connection and while select-before-operate is in progress;
 - an allowed command (IOA 1000) gets a positive confirmation and reaches the
   outstation;
+- a select-before-operate select and execute each get a positive confirmation
+  and reach the outstation with the S/E bit intact;
 - a denied command (IOA 2000) gets a negative confirmation and does **not**
   reach the outstation;
 - after the proxy stops, the old address refuses connections.
@@ -60,9 +64,9 @@ test-only; the proxy itself has no third-party protocol dependency.
 The overall figure excludes the `covercheck` tooling package. Raise a floor
 when a package improves; add a test rather than lowering it.
 
-Current measured production coverage is about 75% overall, with the proxy at
+Current measured production coverage is about 81% overall, with the proxy at
 about 86%, policy at about 96%, parser at about 74%, config at about 79%,
-observability at about 93%, and the command at about 42%.
+observability at about 93%, and the command at about 69%.
 
 ## Focused mutation checks
 
@@ -76,6 +80,7 @@ was run, the test failed, and the file was restored.
 | Policy deny-overrides | `!r.Allow` → `false && !r.Allow` | `TestDenyOverrides` |
 | Unknown-type fail-closed | `a.Partial && !allowUnknown` → `false && ...` | `TestUnknownMasterTypeDeniedByDefault` |
 | Ack-beyond-send rejection | `delta > outstanding` → `false && ...` | `TestLinkAckValidation` |
+| Concurrent send ordering | removed `sendMu` | `TestLinkSendSerialization` |
 
 ## Remaining hardware boundary
 

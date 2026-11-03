@@ -42,16 +42,17 @@ peer behavior, not line coverage. Work in this order.
 5. **Audit and metrics wiring.** Allowed/denied command records, audit file
    rotation, metric counters. Status: done.
 6. **CLI and observability tests.** `probe`, `config.Load`, `Runner`, audit
-   file, metrics serve. Status: done for probe/config/Runner/observ; the
-   `gateway`, `validate` and `selftest` command paths still need tests.
+   file, metrics serve, `gateway` context lifecycle, `validate` text/JSON and
+   `selftest` success/failure. Status: done.
 7. **Mutation checks.** Broke sequence validation, policy deny, P/N bit,
-   unknown-type deny and ack validation; each mutation was caught by a test.
-   Concurrent-send ordering still needs a deterministic mutation hook. Status:
-   done for the five critical invariants; one follow-up.
-8. **Independent peer expansion.** SBO, spontaneous data, outstation restart,
-   a second implementation. Status: pending.
-9. **Coverage floors.** Raised to 72% overall, 82% proxy, 92% policy, 88%
-   observability. Status: done.
+   unknown-type deny, ack validation and concurrent send ordering; each
+   mutation was caught by a test. The concurrency check uses a deterministic
+   send hook. Status: done.
+8. **Independent peer expansion.** SBO select/execute and spontaneous data
+   now run through the interop script and assert at both ends. Outstation
+   restart and a second independent implementation remain. Status: partial.
+9. **Coverage floors.** Raised to 78% overall, 82% proxy, 92% policy, 88%
+   observability, 62% command. Status: done.
 
 ## Next
 

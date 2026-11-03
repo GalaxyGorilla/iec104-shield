@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/wendy512/go-iecp5/asdu"
+	"github.com/wendy512/go-iecp5/cs104"
 	"github.com/wendy512/iec104/client"
 	"github.com/wendy512/iec104/server"
 )
@@ -32,6 +33,8 @@ func main() {
 		runServer(*host, *port, uint16(*commonAddr))
 	case "client":
 		runClient(*host, *port, uint16(*commonAddr), uint32(*allowIOA), uint32(*denyIOA))
+	case "sbo-client":
+		runSBOClient(*host, *port, uint16(*commonAddr), uint32(*allowIOA))
 	default:
 		fmt.Fprintf(os.Stderr, "unknown mode %q\n", *mode)
 		os.Exit(2)
@@ -44,6 +47,15 @@ func runServer(host string, port int, ca uint16) {
 	settings.Port = port
 	settings.LogCfg = &server.LogCfg{Enable: false}
 	srv := server.New(settings, &outstation{ca: ca})
+	srv.SetOnConnectionHandler(func(conn asdu.Connect) {
+		go func() {
+			time.Sleep(500 * time.Millisecond)
+			_ = asdu.Single(conn, false,
+				asdu.CauseOfTransmission{Cause: asdu.Spontaneous},
+				asdu.CommonAddr(ca),
+				asdu.SinglePointInfo{Ioa: 100, Value: true, Qds: asdu.QDSGood})
+		}()
+	})
 	srv.Start()
 	time.Sleep(250 * time.Millisecond)
 	fmt.Println("READY")
@@ -84,7 +96,8 @@ func (o *outstation) OnASDU(conn asdu.Connect, pack *asdu.ASDU) error {
 		// clone rather than from the decoded packet.
 		reply := pack.Clone()
 		cmd := pack.GetSingleCmd()
-		fmt.Printf("COMMAND type=%d ca=%d ioa=%d\n", pack.Type, pack.CommonAddr, cmd.Ioa)
+		fmt.Printf("COMMAND type=%d ca=%d ioa=%d select=%t\n",
+			pack.Type, pack.CommonAddr, cmd.Ioa, cmd.Qoc.InSelect)
 		if err := reply.SendReplyMirror(conn, asdu.ActivationCon); err != nil {
 			fmt.Printf("SEND_CON_ERROR %v\n", err)
 		}
@@ -131,6 +144,71 @@ func runClient(host string, port int, ca uint16, allowIOA, denyIOA uint32) {
 	time.Sleep(2500 * time.Millisecond)
 }
 
+type sboHandler struct{}
+
+func (sboHandler) InterrogationHandler(asdu.Connect, *asdu.ASDU) error { return nil }
+func (sboHandler) CounterInterrogationHandler(asdu.Connect, *asdu.ASDU) error {
+	return nil
+}
+func (sboHandler) ReadHandler(asdu.Connect, *asdu.ASDU) error             { return nil }
+func (sboHandler) TestCommandHandler(asdu.Connect, *asdu.ASDU) error      { return nil }
+func (sboHandler) ClockSyncHandler(asdu.Connect, *asdu.ASDU) error        { return nil }
+func (sboHandler) ResetProcessHandler(asdu.Connect, *asdu.ASDU) error     { return nil }
+func (sboHandler) DelayAcquisitionHandler(asdu.Connect, *asdu.ASDU) error { return nil }
+func (sboHandler) ASDUHandler(_ asdu.Connect, pack *asdu.ASDU) error {
+	switch pack.Type {
+	case asdu.C_SC_NA_1, asdu.C_DC_NA_1, asdu.C_RC_NA_1:
+		cmd := pack.GetSingleCmd()
+		fmt.Printf("COMMAND_RESPONSE type=%d ca=%d ioa=%d select=%t negative=%t\n",
+			pack.Type, pack.CommonAddr, cmd.Ioa, cmd.Qoc.InSelect, pack.Coa.IsNegative)
+	case asdu.M_SP_NA_1, asdu.M_SP_TB_1:
+		for _, p := range pack.GetSinglePoint() {
+			fmt.Printf("SINGLE_POINT ioa=%d value=%t cause=%d\n", p.Ioa, p.Value, pack.Coa.Cause)
+		}
+	default:
+		fmt.Printf("ASDU type=%d ca=%d negative=%t\n", pack.Type, pack.CommonAddr, pack.Coa.IsNegative)
+	}
+	return nil
+}
+
+func runSBOClient(host string, port int, ca uint16, ioa uint32) {
+	option := cs104.NewOption()
+	if err := option.AddRemoteServer(fmt.Sprintf("%s:%d", host, port)); err != nil {
+		fmt.Printf("OPTION_ERROR %v\n", err)
+		os.Exit(1)
+	}
+	c := cs104.NewClient(&sboHandler{}, option)
+	c.SetOnConnectHandler(func(c *cs104.Client) { c.SendStartDt() })
+	c.SetServerActiveHandler(func(c *cs104.Client) {
+		go func() {
+			fmt.Println("ACTIVE")
+			send := func(sel bool) {
+				info := asdu.SingleCommandInfo{
+					Ioa:   asdu.InfoObjAddr(ioa),
+					Value: true,
+					Qoc:   asdu.QualifierOfCommand{InSelect: sel},
+				}
+				if err := asdu.SingleCmd(c, asdu.C_SC_NA_1,
+					asdu.CauseOfTransmission{Cause: asdu.Activation},
+					asdu.CommonAddr(ca), info); err != nil {
+					fmt.Printf("SEND_ERROR select=%t: %v\n", sel, err)
+				}
+			}
+			send(true)
+			time.Sleep(300 * time.Millisecond)
+			send(false)
+			time.Sleep(time.Second)
+			fmt.Println("DONE")
+			_ = c.Close()
+		}()
+	})
+	if err := c.Start(); err != nil {
+		fmt.Printf("CONNECT_ERROR %v\n", err)
+		os.Exit(1)
+	}
+	time.Sleep(2500 * time.Millisecond)
+}
+
 type master struct {
 	ca       uint16
 	allowIOA uint32
@@ -153,7 +231,7 @@ func (m *master) OnASDU(pack *asdu.ASDU) error {
 	switch pack.Type {
 	case asdu.M_SP_NA_1, asdu.M_SP_TB_1:
 		for _, p := range pack.GetSinglePoint() {
-			fmt.Printf("SINGLE_POINT ioa=%d value=%t\n", p.Ioa, p.Value)
+			fmt.Printf("SINGLE_POINT ioa=%d value=%t cause=%d\n", p.Ioa, p.Value, pack.Coa.Cause)
 		}
 	case asdu.C_SC_NA_1, asdu.C_DC_NA_1, asdu.C_RC_NA_1,
 		asdu.C_SE_NA_1, asdu.C_SE_NB_1, asdu.C_SE_NC_1:

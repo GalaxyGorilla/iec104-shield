@@ -502,11 +502,16 @@ type link struct {
 	// sequence number.
 	sendMu  sync.Mutex
 	writeMu sync.Mutex
-	ackCh   chan struct{}
-	done    <-chan struct{}
-	k       int
-	t1      time.Duration
-	idle    time.Duration
+
+	// sendHook is a test seam. It is nil in production. Tests use it to
+	// force the interleaving that sendMu prevents: two goroutines reserve
+	// N(S) and then race to write.
+	sendHook func()
+	ackCh    chan struct{}
+	done     <-chan struct{}
+	k        int
+	t1       time.Duration
+	idle     time.Duration
 }
 
 func newLink(name string, conn net.Conn, k int, t1, idle time.Duration, done <-chan struct{}) *link {
@@ -605,6 +610,9 @@ func (l *link) sendI(asdu []byte) error {
 	seq, ack, err := l.reserveSend()
 	if err != nil {
 		return err
+	}
+	if l.sendHook != nil {
+		l.sendHook()
 	}
 	raw, err := iec104.NewI(seq, ack, asdu)
 	if err != nil {

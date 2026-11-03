@@ -8,6 +8,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1160,5 +1161,70 @@ func TestRunnerBindFailure(t *testing.T) {
 	case <-r.Ready():
 		t.Fatal("runner advertised ready after a bind failure")
 	default:
+	}
+}
+
+func TestLinkSendSerialization(t *testing.T) {
+	client, server := net.Pipe()
+	defer client.Close()
+	defer server.Close()
+	done := make(chan struct{})
+	defer close(done)
+	l := newLink("test", client, 12, time.Second, 0, done)
+
+	var calls atomic.Int32
+	first := make(chan struct{})
+	second := make(chan struct{})
+	release := make(chan struct{})
+	l.sendHook = func() {
+		if calls.Add(1) == 1 {
+			close(first)
+			<-release
+			return
+		}
+		close(second)
+	}
+
+	frames := make(chan iec104.Frame, 2)
+	go func() {
+		for i := 0; i < 2; i++ {
+			f, err := iec104.ReadFrame(server)
+			if err != nil {
+				return
+			}
+			frames <- f
+		}
+	}()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_ = l.sendI([]byte{100, 0x01, 0x06, 0x00, 0x01, 0x00, 0x14})
+	}()
+	<-first
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_ = l.sendI([]byte{100, 0x01, 0x06, 0x00, 0x01, 0x00, 0x14})
+	}()
+	select {
+	case <-second:
+		t.Fatal("second I-frame reserved N(S) before the first was written")
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(release)
+	wg.Wait()
+
+	for i := 0; i < 2; i++ {
+		select {
+		case f := <-frames:
+			if f.SendSeq != uint16(i) {
+				t.Fatalf("frame %d send sequence = %d", i, f.SendSeq)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("frame %d was not written", i)
+		}
 	}
 }

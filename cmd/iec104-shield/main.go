@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/signal"
@@ -211,6 +212,29 @@ func loadChecked(c cliFlags) (*config.Config, error) {
 }
 
 func runGateway(args []string) int {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	hup := make(chan os.Signal, 1)
+	signal.Notify(hup, syscall.SIGHUP)
+	defer signal.Stop(hup)
+	hupDone := make(chan struct{})
+	defer close(hupDone)
+	go func() {
+		for {
+			select {
+			case <-hup:
+				fmt.Fprintln(os.Stderr, "SIGHUP: reload is not implemented in v0.1; keeping the running config")
+			case <-hupDone:
+				return
+			}
+		}
+	}()
+
+	return runGatewayContext(ctx, args, os.Stdout, os.Stderr)
+}
+
+func runGatewayContext(ctx context.Context, args []string, _ io.Writer, stderr io.Writer) int {
 	fs := pflag.NewFlagSet("gateway", pflag.ContinueOnError)
 	c := register(fs)
 	if err := fs.Parse(args); err != nil {
@@ -218,12 +242,12 @@ func runGateway(args []string) int {
 	}
 	cfg, err := loadChecked(c)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(stderr, err)
 		return 1
 	}
 	log, err := observ.Log(cfg.Log.Level, cfg.Log.Format)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(stderr, err)
 		return 1
 	}
 	defer func() { _ = log.Sync() }()
@@ -245,8 +269,6 @@ func runGateway(args []string) int {
 		return 1
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	if cfg.Metrics.Addr != "" {
 		ln, err := observ.Listen(cfg.Metrics.Addr)
 		if err != nil {
@@ -270,28 +292,19 @@ func runGateway(args []string) int {
 		return 1
 	}
 
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
-	defer signal.Stop(sig)
-	for {
-		select {
-		case s := <-sig:
-			if s == syscall.SIGHUP {
-				log.Warn("SIGHUP: reload is not implemented in v0.1; keeping the running config")
-				continue
-			}
-			log.Info("shutting down", zap.String("signal", s.String()))
-			runner.Stop()
-			<-errCh
-			return 0
-		case err := <-errCh:
-			runner.Stop()
-			if err != nil {
-				log.Error("gateway stopped", zap.Error(err))
-				return 1
-			}
-			return 0
+	select {
+	case <-ctx.Done():
+		log.Info("shutting down")
+		runner.Stop()
+		<-errCh
+		return 0
+	case err := <-errCh:
+		runner.Stop()
+		if err != nil {
+			log.Error("gateway stopped", zap.Error(err))
+			return 1
 		}
+		return 0
 	}
 }
 
@@ -302,6 +315,10 @@ type checkResult struct {
 }
 
 func runValidate(args []string) int {
+	return runValidateTo(args, os.Stdout, os.Stderr)
+}
+
+func runValidateTo(args []string, stdout, stderr io.Writer) int {
 	fs := pflag.NewFlagSet("validate", pflag.ContinueOnError)
 	c := register(fs)
 	if err := fs.Parse(args); err != nil {
@@ -310,21 +327,25 @@ func runValidate(args []string) int {
 	cfg, err := loadChecked(c)
 	if err != nil {
 		if *c.jsonOut {
-			_ = json.NewEncoder(os.Stdout).Encode(checkResult{OK: false, Error: err.Error()})
+			_ = json.NewEncoder(stdout).Encode(checkResult{OK: false, Error: err.Error()})
 		} else {
-			fmt.Fprintln(os.Stderr, err)
+			fmt.Fprintln(stderr, err)
 		}
 		return 1
 	}
 	if *c.jsonOut {
-		_ = json.NewEncoder(os.Stdout).Encode(checkResult{OK: true})
+		_ = json.NewEncoder(stdout).Encode(checkResult{OK: true})
 	} else {
-		fmt.Printf("ok: %d device(s)\n", len(cfg.Devices))
+		fmt.Fprintf(stdout, "ok: %d device(s)\n", len(cfg.Devices))
 	}
 	return 0
 }
 
 func runSelftest(args []string) int {
+	return runSelftestTo(args, os.Stdout, os.Stderr)
+}
+
+func runSelftestTo(args []string, stdout, stderr io.Writer) int {
 	fs := pflag.NewFlagSet("selftest", pflag.ContinueOnError)
 	c := register(fs)
 	if err := fs.Parse(args); err != nil {
@@ -332,7 +353,7 @@ func runSelftest(args []string) int {
 	}
 	cfg, err := loadChecked(c)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(stderr, err)
 		return 1
 	}
 	results := make([]checkResult, 0, len(cfg.Devices))
@@ -349,13 +370,13 @@ func runSelftest(args []string) int {
 		results = append(results, res)
 	}
 	if *c.jsonOut {
-		_ = json.NewEncoder(os.Stdout).Encode(results)
+		_ = json.NewEncoder(stdout).Encode(results)
 	} else {
 		for _, r := range results {
 			if r.OK {
-				fmt.Printf("%s: ok\n", r.Device)
+				fmt.Fprintf(stdout, "%s: ok\n", r.Device)
 			} else {
-				fmt.Printf("%s: FAIL: %s\n", r.Device, r.Error)
+				fmt.Fprintf(stdout, "%s: FAIL: %s\n", r.Device, r.Error)
 			}
 		}
 	}
@@ -394,7 +415,7 @@ func probe(addr string, timeout time.Duration) error {
 	}
 }
 
-func usage(w *os.File) {
+func usage(w io.Writer) {
 	fmt.Fprintln(w, `iec104-shield — IEC 60870-5-104 security proxy
 
 Usage:

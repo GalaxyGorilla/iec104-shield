@@ -4,8 +4,9 @@
 #   wendy512/iec104 master -> iec104-shield -> wendy512/iec104 outstation
 #
 # The outstation and master are both a third-party implementation. The proxy
-# forwards an interrogation and an allowed command, and answers a disallowed
-# command with a negative activation confirmation without forwarding it.
+# forwards an interrogation, spontaneous data, an allowed command and a
+# select-before-operate pair, and answers a disallowed command with a negative
+# activation confirmation without forwarding it.
 #
 # Exit 77 when the peer cannot be built and INTEROP_REQUIRED is not set.
 set -eu
@@ -32,6 +33,8 @@ fail() {
 	echo "interop FAILED: $1"
 	echo "--- client"
 	cat "$TMP/client.log" 2>/dev/null || true
+	echo "--- sbo client"
+	cat "$TMP/sbo.log" 2>/dev/null || true
 	echo "--- outstation"
 	cat "$TMP/server.log" 2>/dev/null || true
 	echo "--- proxy"
@@ -76,7 +79,7 @@ echo "== proxy owns 127.0.0.1:$PROXY_PORT, outstation moved to 127.0.0.1:$DEV_PO
 	--listen "127.0.0.1:$PROXY_PORT" \
 	--device "127.0.0.1:$DEV_PORT" \
 	--command-default deny \
-	--command-rule 'allow:45:1:1000-1500:execute' \
+	--command-rule 'allow:45:1:1000-1500:any' \
 	--log-level info >"$TMP/proxy.log" 2>&1 &
 PROXY_PID=$!
 i=0
@@ -92,12 +95,23 @@ echo "== independent master through the original address"
 sleep 0.3
 
 grep -q 'SINGLE_POINT ioa=100 value=true' "$TMP/client.log" || fail "interrogation data did not cross the proxy"
+grep -q 'SINGLE_POINT ioa=100 value=true cause=3' "$TMP/client.log" || fail "spontaneous data did not cross the proxy"
 grep -q 'COMMAND_RESPONSE type=45 ca=1 ioa=1000 negative=false' "$TMP/client.log" || fail "allowed command did not get a positive confirmation"
 grep -q 'COMMAND_RESPONSE type=45 ca=1 ioa=2000 negative=true' "$TMP/client.log" || fail "denied command did not get a negative confirmation"
 grep -q 'COMMAND type=45 ca=1 ioa=1000' "$TMP/server.log" || fail "allowed command did not reach the outstation"
 if grep -q 'COMMAND type=45 ca=1 ioa=2000' "$TMP/server.log"; then
 	fail "denied command reached the outstation"
 fi
+
+echo "== select-before-operate through the original address"
+"$TMP/iec104peer" -mode sbo-client -host 127.0.0.1 -port "$PROXY_PORT" >"$TMP/sbo.log" 2>&1 || true
+sleep 0.3
+
+grep -q 'COMMAND_RESPONSE type=45 ca=1 ioa=1000 select=true negative=false' "$TMP/sbo.log" || fail "SBO select was not confirmed"
+grep -q 'COMMAND_RESPONSE type=45 ca=1 ioa=1000 select=false negative=false' "$TMP/sbo.log" || fail "SBO execute was not confirmed"
+grep -q 'SINGLE_POINT ioa=100 value=true cause=3' "$TMP/sbo.log" || fail "spontaneous data did not cross the proxy during SBO"
+grep -q 'COMMAND type=45 ca=1 ioa=1000 select=true' "$TMP/server.log" || fail "SBO select did not reach the outstation"
+grep -q 'COMMAND type=45 ca=1 ioa=1000 select=false' "$TMP/server.log" || fail "SBO execute did not reach the outstation"
 
 echo "== stopping the proxy: the original address must disappear"
 kill "$PROXY_PID" 2>/dev/null || true
