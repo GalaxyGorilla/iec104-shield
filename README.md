@@ -281,7 +281,8 @@ the CRA working outline.
 make build          # bin/iec104-shield
 make test           # gofmt + race suite
 make verify         # build + race suite + vet
-make interop        # two independent peer stacks (wendy512, otfabric)
+make interop        # two independent Go peer stacks (wendy512, otfabric)
+make interop-lib60870 # MZ Automation lib60870-C outstation (optional C toolchain)
 make smoke-reload   # real binary: deny -> SIGHUP -> allow, then a bad file
 make acceptance     # verify + interop + smoke-reload (no skips)
 make cover          # per-package coverage floors
@@ -303,9 +304,14 @@ in front of it, and drives it with an independent master. It checks:
 
 A third run points the second stack at the TLS listener and checks the same
 commands, plus a plain client being refused. A fourth run uses TLS on both the
-master and outstation legs. `smoke-reload` proves the real binary applies a
-rewritten policy on SIGHUP and keeps the running policy when the new file is
-invalid.
+master and outstation legs.
+
+`make interop-lib60870` adds MZ Automation's lib60870-C as a third,
+independent outstation behind the proxy, driven by the otfabric master. It
+builds lib60870 in a temporary directory and never links it into the proxy;
+it exits 77 when the C toolchain or network is unavailable. `smoke-reload`
+proves the real binary applies a rewritten policy on SIGHUP and keeps the
+running policy when the new file is invalid.
 
 See [TESTING.md](TESTING.md).
 

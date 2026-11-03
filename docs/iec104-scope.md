@@ -91,8 +91,9 @@ negative confirmation itself.
   protocol errors.
 - Prometheus metrics and `/healthz` `/readyz`.
 - `gateway`, `validate`, `selftest`, `version` commands.
-- Independent interop tests with two separate stacks, `wendy512/iec104` and
-  `otfabric/go-iec104`, as both master and outstation.
+- Independent interop tests with two Go stacks, `wendy512/iec104` and
+  `otfabric/go-iec104`, as both master and outstation, plus MZ Automation
+  lib60870-C as an optional third outstation.
 - SBO select/execute, spontaneous data and outstation-restart coverage.
 - Address-takeover loopback proof: the original address disappears when the
   proxy stops, while the RTU still answers at its moved address.

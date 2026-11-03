@@ -54,7 +54,7 @@ master ──► old RTU address ──► iec104-shield ──► RTU at new ad
 | Shielding | Connection cap, IP allow-list, token bucket, pacing | `TestMaxClients`, `TestRateLimit*`, `TestPacing*` |
 | Audit | Allowed and denied commands recorded | `TestAuditAllowedAndDeniedCommands` |
 | Update/reload | SIGHUP applies one atomic snapshot; bad file kept | `TestReload*`, `scripts/smoke-reload.sh` |
-| Cross-implementation interop | Two independent stacks | `scripts/interop-iec104.sh` |
+| Cross-implementation interop | Two Go stacks plus MZ Automation lib60870-C | `scripts/interop-iec104.sh`, `scripts/interop-iec104-lib60870.sh` |
 | Master-leg transport security | IEC 62351-3 TLS, optional mTLS | `TestTLSGateway`, interop TLS scenario |
 | Vulnerability handling | `govulncheck`, SBOM, grype scan | `make security`, `scripts/sbom.sh` |
 

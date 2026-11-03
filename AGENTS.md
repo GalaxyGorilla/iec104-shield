@@ -77,6 +77,7 @@ make build
 make test
 make verify
 make interop
+make interop-lib60870
 make smoke-reload
 make acceptance
 make cover
@@ -100,7 +101,8 @@ under `test/peers/iec104peer` and is deliberately not part of the main module.
 ## Current state
 
 v0.1 is a working software prototype with interop against two independent
-IEC-104 stacks (`wendy512/iec104` and `otfabric/go-iec104`), SBO,
+Go stacks (`wendy512/iec104` and `otfabric/go-iec104`) plus MZ Automation
+lib60870-C as an optional third outstation, SBO,
 spontaneous-data and outstation-restart coverage, IEC 62351-3 TLS on the
 master and/or upstream leg with optional mTLS, a loopback address-takeover
 proof, SIGHUP reload

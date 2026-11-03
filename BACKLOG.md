@@ -89,6 +89,10 @@ peer behavior, not line coverage. Work in this order.
 - A second independent stack, `otfabric/go-iec104`, runs the full interop
   scenario (interrogation, spontaneous data, allowed/denied commands, SBO,
   address takeover) alongside `wendy512/iec104`.
+- MZ Automation lib60870-C runs as a third outstation behind the proxy
+  (`make interop-lib60870`), driven by the otfabric master. It is built in a
+  temporary directory and never linked into the proxy; the script exits 77
+  without the C toolchain or network.
 - Outstation restart: the master session closes when the outstation dies, and
   a restarted outstation on the same address gets a fresh upstream connection
   for the next master.

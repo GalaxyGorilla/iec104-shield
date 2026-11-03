@@ -6,7 +6,7 @@ GO     ?= go
 VERSION ?= 0.1.0
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: all build test fmt-check vet staticcheck govulncheck race verify acceptance peers interop interop-required smoke-reload smoke-reload-required cover fuzz release release-all release-assets release-sign release-verify sbom vulnscan security clean
+.PHONY: all build test fmt-check vet staticcheck govulncheck race verify acceptance peers interop interop-required interop-lib60870 interop-lib60870-required smoke-reload smoke-reload-required cover fuzz release release-all release-assets release-sign release-verify sbom vulnscan security clean
 
 all: build
 
@@ -56,6 +56,15 @@ interop: build
 
 interop-required: build
 	INTEROP_REQUIRED=1 sh scripts/interop-iec104.sh
+
+# interop-lib60870 runs the MZ Automation lib60870-C outstation behind the
+# proxy with the otfabric master in front. It clones and builds lib60870 when
+# LIB60870_DIR is not set; exit 77 when the C toolchain/network is missing.
+interop-lib60870: build
+	sh scripts/interop-iec104-lib60870.sh
+
+interop-lib60870-required: build
+	LIB60870_REQUIRED=1 sh scripts/interop-iec104-lib60870.sh
 
 # smoke-reload proves SIGHUP applies a new policy to a running proxy and keeps
 # the old one when the new file is invalid. Exit 77 when the peer is missing.

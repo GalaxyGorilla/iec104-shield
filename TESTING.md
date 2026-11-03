@@ -18,7 +18,7 @@ successful forwarding.
 | Reload | SIGHUP applies policy/allow-list/limits to running sessions; a bad file keeps the running config |
 | Shielding | Token-bucket rate limit and shared pacing for master-to-outstation I-frames; RTU data is unaffected |
 | TLS | Master-facing and upstream TLS, mTLS, plain-client rejection, handshake before the upstream dial |
-| Independent peer | Two separate stacks (`wendy512/iec104` and `otfabric/go-iec104`), neither end using this proxy's parser |
+| Independent peer | Two Go stacks (`wendy512/iec104`, `otfabric/go-iec104`) plus MZ Automation lib60870-C as a third outstation, none using this proxy's parser |
 | Real binary | `validate`, `selftest`, `gateway`, YAML and flags modes |
 
 ## Commands
@@ -26,7 +26,8 @@ successful forwarding.
 ```sh
 make test          # gofmt + race suite
 make verify        # build + race suite + vet
-make interop       # independent peer; exit 77 if it cannot be built
+make interop       # independent peers; exit 77 if they cannot be built
+make interop-lib60870 # lib60870-C outstation; exit 77 without the C toolchain
 make smoke-reload  # real binary: deny -> SIGHUP -> allow, then a bad file
 make acceptance    # verify + interop + smoke-reload, no skips
 make cover         # per-package coverage floors
@@ -68,6 +69,13 @@ It asserts:
 The peers live in `test/peers/iec104peer` and `test/peers/iec104peer2` as
 separate Go modules. They are test-only; the proxy itself has no third-party
 protocol dependency.
+
+`scripts/interop-iec104-lib60870.sh` adds MZ Automation's lib60870-C as a
+third outstation. It builds lib60870 in a temporary directory, patches the
+stock `cs104_server` example only for an argv port and unbuffered stdout, and
+never links the C library into the proxy. It asserts interrogation data, an
+allowed command to IOA 5000 reaching lib60870, and a denied command to IOA
+2000 not reaching it. It exits 77 when the C toolchain or network is missing.
 
 ## SIGHUP reload
 

@@ -115,6 +115,7 @@ can be checked without pretending to reproduce the standard's numbering.
 |---|---|---|
 | Interrogation, allowed/denied command, SBO, spontaneous data | `scripts/interop-iec104.sh` with `wendy512/iec104` | covered |
 | Same scenario with a second independent stack | `scripts/interop-iec104.sh` with `otfabric/go-iec104` | covered |
+| Third outstation implementation | `scripts/interop-iec104-lib60870.sh` with MZ Automation lib60870-C | covered (optional C toolchain) |
 | Physical RTU timing, retransmission, vendor profiles | none | lab |
 | Master-leg IEC 62351-3 TLS and plain-client rejection | `scripts/interop-iec104.sh` | covered |
 | Both-leg TLS | `scripts/interop-iec104.sh` (`otfabric-tls-both`) | covered |
