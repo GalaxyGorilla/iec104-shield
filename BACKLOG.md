@@ -93,6 +93,16 @@ peer behavior, not line coverage. Work in this order.
   a restarted outstation on the same address gets a fresh upstream connection
   for the next master.
 
+## Done — packaging
+
+- Hardened systemd unit: dedicated user, `CAP_NET_BIND_SERVICE` only,
+  `ProtectSystem=strict`, `ProtectHome`, no new privileges, address-family
+  restriction, and `ExecReload` wired to SIGHUP.
+- Release SBOMs (SPDX + CycloneDX) and a grype HIGH-or-worse gate in
+  `scripts/sbom.sh` / `make security`.
+- CRA technical-file working outline in `docs/cra-technical-file.md`.
+- Signed release artefacts and an update-signing key remain in Next.
+
 ## Next
 
 1. **Real RTU lab.** One physical or vendor simulator: interrogation,
@@ -109,5 +119,6 @@ peer behavior, not line coverage. Work in this order.
    `max_clients: 1` or design safe session multiplexing.
 7. **DNP3.** Only after IEC-104 has a design partner; separate protocol
    engine, not a port of this one.
-8. **Packaging.** systemd hardening, SBOM, signed releases, CRA technical
-   documentation.
+8. **Signed releases and update channel.** Sign binaries and SBOMs, publish
+   checksums, and define how an appliance verifies an update before installing
+   it.

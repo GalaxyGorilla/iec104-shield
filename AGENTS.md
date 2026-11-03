@@ -101,6 +101,8 @@ spontaneous-data and outstation-restart coverage, a loopback
 address-takeover proof, SIGHUP reload
 of the command policy, allow-list and limits, and token-bucket rate limiting
 plus shared pacing for master-to-outstation I-frames. A listener or
-outstation address change is reported as restart-only. It is not yet
-validated against a physical RTU, IEC 62351 TLS/authentication, real
-ARP/NDP takeover, or an IEC-104 conformance suite.
+outstation address change is reported as restart-only. Packaging includes a
+hardened systemd unit with SIGHUP reload, SBOM/grype release gates, and a CRA
+technical-file outline. It is not yet validated against a physical RTU,
+IEC 62351 TLS/authentication, real ARP/NDP takeover, or an IEC-104
+conformance suite.

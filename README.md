@@ -212,7 +212,9 @@ no bypass in v0.1.
 - A full IEC-104 conformance suite.
 
 See [docs/iec104-scope.md](docs/iec104-scope.md) for the design reasoning and
-the risk list.
+the risk list, and
+[docs/cra-technical-file.md](docs/cra-technical-file.md) for the CRA working
+outline.
 
 ## Build and test
 

@@ -9,6 +9,8 @@ Type=simple
 User=iec104-shield
 Group=iec104-shield
 ExecStart=/usr/local/bin/iec104-shield gateway --config /etc/iec104-shield/gateway.yaml
+# SIGHUP re-reads the YAML and swaps the reloadable policy/limits in place.
+ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure
 RestartSec=2s
 

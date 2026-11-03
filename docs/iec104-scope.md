@@ -1,7 +1,8 @@
 # IEC 104 Shield — scope and design
 
 **Status:** v0.1 implementation, 2026-11-03. Software prototype; not yet
-validated against a physical RTU or a utility conformance suite.
+validated against a physical RTU or a utility conformance suite. The CRA
+working outline lives in [cra-technical-file.md](cra-technical-file.md).
 
 ## Why IEC-104 for a Germany/Europe focus
 
@@ -72,14 +73,24 @@ negative confirmation itself.
   type whose objects cannot be parsed is always refused.
 - Denied commands get a negative activation confirmation (COT 7 + P/N) and
   never reach the RTU.
+- Shared token-bucket rate limiting (`rate_per_sec`) and minimum forwarding
+  gap (`min_interval_ms`) for master-to-outstation I-frames; an over-rate
+  request gets a negative confirmation and never reaches the RTU. RTU-to-master
+  monitoring data is not limited.
+- SIGHUP reload of the command policy, allow-list, connection cap, timeouts,
+  t1/k, rate limit and pacing as one atomic snapshot. Listener and outstation
+  address changes are reported as restart-only.
 - JSON-lines audit of accepts, rejects, allowed commands, denied commands and
   protocol errors.
 - Prometheus metrics and `/healthz` `/readyz`.
 - `gateway`, `validate`, `selftest`, `version` commands.
-- Independent interop test with `wendy512/iec104` as both master and
-  outstation.
+- Independent interop tests with two separate stacks, `wendy512/iec104` and
+  `otfabric/go-iec104`, as both master and outstation.
+- SBO select/execute, spontaneous data and outstation-restart coverage.
 - Address-takeover loopback proof: the original address disappears when the
   proxy stops, while the RTU still answers at its moved address.
+- File/log transfer (120–127) is write-class and policy-gated; variable-size
+  125/127 always fail closed. No content inspection.
 
 ## Explicit non-goals for v0.1
 
