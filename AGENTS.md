@@ -61,8 +61,9 @@ internal/policy/       allow-list + command policy
 internal/config/       YAML/flags + validation
 internal/proxy/        gateway, session, sequence handling
 internal/observ/       logger, metrics, audit
-test/peers/iec104peer/ independent peer, separate Go module
-scripts/               interop, SBOM
+test/peers/iec104peer/  independent wendy512/iec104 peer, separate Go module
+test/peers/iec104peer2/ independent otfabric/go-iec104 peer, separate Go module
+scripts/                interop, SBOM
 ```
 
 ## Commands
@@ -94,10 +95,12 @@ under `test/peers/iec104peer` and is deliberately not part of the main module.
 
 ## Current state
 
-v0.1 is a working software prototype with a passing independent-peer
-interop test, SBO and spontaneous-data coverage, a loopback address-takeover
-proof, SIGHUP reload of the command policy, allow-list and limits, and
-token-bucket rate limiting plus shared pacing for master-to-outstation
-I-frames. A listener or outstation address change is reported as
-restart-only. It is not yet validated against a physical RTU, IEC 62351
-TLS/authentication, real ARP/NDP takeover, or an IEC-104 conformance suite.
+v0.1 is a working software prototype with interop against two independent
+IEC-104 stacks (`wendy512/iec104` and `otfabric/go-iec104`), SBO,
+spontaneous-data and outstation-restart coverage, a loopback
+address-takeover proof, SIGHUP reload
+of the command policy, allow-list and limits, and token-bucket rate limiting
+plus shared pacing for master-to-outstation I-frames. A listener or
+outstation address change is reported as restart-only. It is not yet
+validated against a physical RTU, IEC 62351 TLS/authentication, real
+ARP/NDP takeover, or an IEC-104 conformance suite.

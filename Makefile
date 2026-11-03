@@ -43,9 +43,10 @@ acceptance: verify interop-required smoke-reload-required
 # a missing tool fails this target.
 security: verify staticcheck govulncheck vulnscan
 
-# peers downloads the independent peer module. It needs network access.
+# peers downloads both independent peer modules. It needs network access.
 peers:
 	cd test/peers/iec104peer && $(GO) mod download
+	cd test/peers/iec104peer2 && $(GO) mod download
 
 # interop drives the built gateway with an independent IEC-104 master and
 # outstation: interrogation, an allowed command, a denied command, and

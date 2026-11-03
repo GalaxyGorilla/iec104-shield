@@ -49,8 +49,10 @@ peer behavior, not line coverage. Work in this order.
    mutation was caught by a test. The concurrency check uses a deterministic
    send hook. Status: done.
 8. **Independent peer expansion.** SBO select/execute and spontaneous data
-   now run through the interop script and assert at both ends. Outstation
-   restart and a second independent implementation remain. Status: partial.
+   run through the interop script and assert at both ends. A second stack
+   (`otfabric/go-iec104`) runs the full scenario alongside `wendy512/iec104`.
+   Status: done for SBO, spontaneous data and the second implementation;
+   outstation restart remains in Next.
 9. **Coverage floors.** Raised to 80% overall, 84% proxy, 92% policy, 88%
    observability, 68% command. Status: done.
 
@@ -77,6 +79,19 @@ peer behavior, not line coverage. Work in this order.
 - Both are in the reloadable runtime snapshot, validated as non-negative,
   exposed as `--rate-per-sec` / `--min-interval-ms`, and covered by unit and
   end-to-end tests (burst denial, refill, pacing gap, reload).
+- File/log transfer types 120–127 stay write-class: denied by the secure
+  default, fixed-size types can be explicitly allowed, and variable-size
+  125/127 always fail closed because their objects cannot be authorized.
+  Content inspection remains out of scope.
+
+## Done — peer expansion
+
+- A second independent stack, `otfabric/go-iec104`, runs the full interop
+  scenario (interrogation, spontaneous data, allowed/denied commands, SBO,
+  address takeover) alongside `wendy512/iec104`.
+- Outstation restart: the master session closes when the outstation dies, and
+  a restarted outstation on the same address gets a fresh upstream connection
+  for the next master.
 
 ## Next
 
@@ -92,9 +107,7 @@ peer behavior, not line coverage. Work in this order.
    to an in-flight command during failover.
 6. **Multi-master.** If an RTU accepts one connection, either enforce
    `max_clients: 1` or design safe session multiplexing.
-7. **File transfer.** Inspect or explicitly block file/log transfer types;
-   v0.1 blocks them in read-only and otherwise treats them as writes.
-8. **DNP3.** Only after IEC-104 has a design partner; separate protocol
+7. **DNP3.** Only after IEC-104 has a design partner; separate protocol
    engine, not a port of this one.
-9. **Packaging.** systemd hardening, SBOM, signed releases, CRA technical
+8. **Packaging.** systemd hardening, SBOM, signed releases, CRA technical
    documentation.

@@ -173,6 +173,11 @@ func startFakeWithConnect(t *testing.T, handler func(*testPeer, iec104.ASDU), on
 	if err != nil {
 		t.Fatal(err)
 	}
+	return startFakeOn(t, ln, handler, onConnect)
+}
+
+func startFakeOn(t *testing.T, ln net.Listener, handler func(*testPeer, iec104.ASDU), onConnect func(*testPeer)) *fakeOutstation {
+	t.Helper()
 	f := &fakeOutstation{ln: ln, conns: make(map[net.Conn]struct{})}
 	go func() {
 		for {
@@ -1234,5 +1239,119 @@ func TestLinkSendSerialization(t *testing.T) {
 		case <-time.After(time.Second):
 			t.Fatalf("frame %d was not written", i)
 		}
+	}
+}
+
+func replyInterrogation(p *testPeer, a iec104.ASDU) {
+	if a.TypeID == 100 {
+		_ = p.sendI(singlePoint(1, 100, true))
+	}
+}
+
+func listenRetry(t *testing.T, addr string) net.Listener {
+	t.Helper()
+	var (
+		ln  net.Listener
+		err error
+	)
+	for i := 0; i < 50; i++ {
+		ln, err = net.Listen("tcp", addr)
+		if err == nil {
+			return ln
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("restart listener on %s: %v", addr, err)
+	return nil
+}
+
+func TestOutstationRestart(t *testing.T) {
+	fake := startFake(t, replyInterrogation)
+	dev := testDevice(fake.addr())
+	gwAddr, stop := startGateway(t, dev)
+	defer stop()
+
+	m := dialMaster(t, gwAddr)
+	if err := m.sendI(interrogation(1)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.readI(); err != nil {
+		t.Fatal(err)
+	}
+
+	// The outstation dies. The master session must fail closed rather than
+	// pretending the RTU is still there.
+	fake.close()
+	_ = m.conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	if _, err := m.readI(); err == nil {
+		t.Fatal("master connection stayed open after the outstation stopped")
+	}
+	m.close()
+
+	// A restarted outstation on the same address must get a fresh upstream
+	// connection for the next master.
+	ln := listenRetry(t, fake.addr())
+	fake2 := startFakeOn(t, ln, replyInterrogation, nil)
+	defer fake2.close()
+
+	m2 := dialMaster(t, gwAddr)
+	defer m2.close()
+	if err := m2.sendI(interrogation(1)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m2.readI(); err != nil {
+		t.Fatalf("new session after outstation restart: %v", err)
+	}
+	if got := len(fake2.received()); got != 1 {
+		t.Fatalf("restarted outstation received %d interrogations, want 1", got)
+	}
+}
+
+func fileTransferASDU(typ uint8, ca uint16, info []byte) []byte {
+	out := []byte{typ, 0x01, 0x06, 0x00, byte(ca), byte(ca >> 8)}
+	return append(out, info...)
+}
+
+func TestFileTransferIsPolicyGated(t *testing.T) {
+	fake := startFake(t, nil)
+	defer fake.close()
+	dev := testDevice(fake.addr())
+	dev.CommandPolicy = &config.CommandPolicy{Default: "allow"}
+	addr, stop := startGateway(t, dev)
+	defer stop()
+
+	m := dialMaster(t, addr)
+	defer m.close()
+
+	// F_FR_NA_1 (120) has a fixed-size element, so an explicit allow policy
+	// can forward it. There is no content inspection.
+	fixed := fileTransferASDU(120, 1, []byte{1, 2, 3, 4, 5, 6})
+	if err := m.sendI(fixed); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(time.Second)
+	for len(fake.received()) < 1 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := len(fake.received()); got != 1 {
+		t.Fatalf("fixed-size file transfer was not forwarded: %d", got)
+	}
+
+	// F_SG_NA_1 (125) is variable-size and not parsed. It is a write type
+	// whose objects cannot be authorized, so it fails closed even with
+	// default allow.
+	variable := fileTransferASDU(125, 1, []byte{1, 2, 3, 4, 5, 6, 7, 8})
+	if err := m.sendI(variable); err != nil {
+		t.Fatal(err)
+	}
+	neg, err := m.readI()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if neg.TypeID != 125 || !neg.PN {
+		t.Fatalf("variable file transfer was not refused: %+v", neg)
+	}
+	if got := len(fake.received()); got != 1 {
+		t.Fatalf("variable file transfer reached the outstation: %d", got)
 	}
 }

@@ -164,6 +164,11 @@ Denied commands are answered with a negative activation confirmation and are
 not forwarded. The audit record names type, cause, common address, IOA,
 select/execute and the reason.
 
+File transfer and log query (120–127) are write-class. The secure default
+denies them; an explicit allow rule can forward the fixed-size types. Types
+whose objects cannot be parsed (125 and 127) are always refused because the
+proxy cannot authorize their IOAs. There is no file-content inspection.
+
 ## Shielding and reload
 
 `rate_per_sec` bounds master-to-outstation I-frames across all masters on a
@@ -215,15 +220,16 @@ the risk list.
 make build          # bin/iec104-shield
 make test           # gofmt + race suite
 make verify         # build + race suite + vet
-make interop        # independent wendy512/iec104 master + outstation
+make interop        # two independent peer stacks (wendy512, otfabric)
 make smoke-reload   # real binary: deny -> SIGHUP -> allow, then a bad file
 make acceptance     # verify + interop + smoke-reload (no skips)
 make cover          # per-package coverage floors
 make release-all    # linux amd64/arm64/armv7
 ```
 
-The interop suite starts an independent outstation, puts the proxy in front of
-it, and drives it with an independent master. It checks:
+The interop suite runs twice, with `wendy512/iec104` and `otfabric/go-iec104`
+as separate stacks. Each run starts an independent outstation, puts the proxy
+in front of it, and drives it with an independent master. It checks:
 
 - interrogation and spontaneous data cross the proxy;
 - an allowed command gets a positive confirmation and reaches the RTU;
@@ -245,8 +251,9 @@ internal/policy/       IP allow-list and command policy
 internal/config/       YAML + flags config and validation
 internal/proxy/        terminating proxy, sequence handling, fail-closed
 internal/observ/       zap logger, Prometheus metrics, JSON audit
-test/peers/iec104peer/ independent wendy512/iec104 peer (separate module)
-scripts/               interop and SBOM scripts
+test/peers/iec104peer/  independent wendy512/iec104 peer (separate module)
+test/peers/iec104peer2/ independent otfabric/go-iec104 peer (separate module)
+scripts/                interop and SBOM scripts
 docs/                  scope, design and risk notes
 examples/              walkthroughs
 deploy/                systemd unit

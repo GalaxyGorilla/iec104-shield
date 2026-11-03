@@ -9,13 +9,15 @@ successful forwarding.
 | ASDU | Header, COT P/N and test bits, common address, IOA, sequence objects, optional zero-IOA system commands |
 | Policy | Read-only, default deny, allow/deny scoping, select/execute, deny-overrides, no-IOA rules |
 | Unknown types | Master-to-RTU private types denied by default; explicit opt-in; partial write types always denied |
+| File transfer | 120–127 are write-class; fixed-size can be explicitly allowed, variable-size 125/127 always fail closed |
 | Sequence | Independent per-leg spaces, S-frame acks, k-window, t1 expiry, sequence-gap close |
 | Data plane | Denied command gets a negative confirmation and never reaches the outstation; allowed command does; interrogation data crosses |
 | Fail-closed | Upstream dial failure closes the front connection; stopping the proxy removes the old address |
+| Restart | Outstation death closes the master session; a restarted outstation gets a fresh upstream connection |
 | Control frames | STARTDT/STOPDT/TESTFR relayed end to end |
 | Reload | SIGHUP applies policy/allow-list/limits to running sessions; a bad file keeps the running config |
 | Shielding | Token-bucket rate limit and shared pacing for master-to-outstation I-frames; RTU data is unaffected |
-| Independent peer | `wendy512/iec104` master and outstation, neither end using this proxy's parser |
+| Independent peer | Two separate stacks (`wendy512/iec104` and `otfabric/go-iec104`), neither end using this proxy's parser |
 | Real binary | `validate`, `selftest`, `gateway`, YAML and flags modes |
 
 ## Commands
@@ -38,12 +40,13 @@ go test ./internal/iec104 -run '^$' -fuzz FuzzParseASDU -fuzztime 10s
 
 ## Independent interop
 
-`scripts/interop-iec104.sh` starts:
+`scripts/interop-iec104.sh` runs the same scenario twice: once with
+`wendy512/iec104` and once with `otfabric/go-iec104`. For each stack it starts:
 
-1. a `wendy512/iec104` outstation on a free loopback port;
+1. an outstation on a free loopback port;
 2. the proxy on another free loopback port, with the outstation moved behind
    it;
-3. a `wendy512/iec104` master pointed at the proxy's address.
+3. a master from the same stack pointed at the proxy's address.
 
 It asserts:
 
@@ -58,8 +61,9 @@ It asserts:
   reach the outstation;
 - after the proxy stops, the old address refuses connections.
 
-The peer lives in `test/peers/iec104peer` as a separate Go module. It is
-test-only; the proxy itself has no third-party protocol dependency.
+The peers live in `test/peers/iec104peer` and `test/peers/iec104peer2` as
+separate Go modules. They are test-only; the proxy itself has no third-party
+protocol dependency.
 
 ## SIGHUP reload
 
