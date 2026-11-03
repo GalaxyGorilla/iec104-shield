@@ -15,13 +15,17 @@ import (
 type Runner struct {
 	gws   []*Gateway
 	lns   []net.Listener
+	log   *zap.SugaredLogger
 	wg    sync.WaitGroup
 	bound chan struct{}
 }
 
 // NewRunner builds one gateway per config device.
 func NewRunner(cfg *config.Config, log *zap.SugaredLogger, met Metrics, audit *observ.Audit) (*Runner, error) {
-	r := &Runner{bound: make(chan struct{})}
+	if log == nil {
+		log = zap.NewNop().Sugar()
+	}
+	r := &Runner{bound: make(chan struct{}), log: log}
 	for i := range cfg.Devices {
 		gw, err := New(cfg.Devices[i], log, met, audit)
 		if err != nil {

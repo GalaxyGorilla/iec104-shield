@@ -12,8 +12,11 @@ import (
 	"time"
 
 	"github.com/spf13/pflag"
+	"go.uber.org/zap"
 
+	"github.com/GalaxyGorilla/iec104-shield/internal/config"
 	"github.com/GalaxyGorilla/iec104-shield/internal/iec104"
+	"github.com/GalaxyGorilla/iec104-shield/internal/proxy"
 )
 
 func parseFlags(t *testing.T, args ...string) cliFlags {
@@ -344,4 +347,33 @@ devices:
 	case <-time.After(3 * time.Second):
 		t.Fatal("gateway did not stop after context cancellation")
 	}
+}
+
+func TestReloadCommandPath(t *testing.T) {
+	r, err := proxy.NewRunner(&config.Config{}, zap.NewNop().Sugar(), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	log := zap.NewNop()
+
+	// Flags mode has no file to re-read.
+	reload(parseFlags(t), r, log)
+
+	dir := t.TempDir()
+	bad := dir + "/bad.yaml"
+	if err := os.WriteFile(bad, []byte("devices: [\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// A bad file must keep the running configuration.
+	reload(parseFlags(t, "--config", bad), r, log)
+
+	good := dir + "/good.yaml"
+	if err := os.WriteFile(good, []byte(`
+devices:
+  - listen_addr: "127.0.0.1:2404"
+    device_addr: "127.0.0.1:2405"
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	reload(parseFlags(t, "--config", good), r, log)
 }

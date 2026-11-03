@@ -51,8 +51,20 @@ peer behavior, not line coverage. Work in this order.
 8. **Independent peer expansion.** SBO select/execute and spontaneous data
    now run through the interop script and assert at both ends. Outstation
    restart and a second independent implementation remain. Status: partial.
-9. **Coverage floors.** Raised to 78% overall, 82% proxy, 92% policy, 88%
-   observability, 62% command. Status: done.
+9. **Coverage floors.** Raised to 80% overall, 84% proxy, 92% policy, 88%
+   observability, 68% command. Status: done.
+
+## Done — reload pass
+
+- SIGHUP reload with an atomic `gatewayRuntime` snapshot: command policy,
+  read_only, allow_unknown_types, allow-list, max_clients, dial/idle timeout,
+  t1 and k. Policy revocation applies to an established session on its next
+  frame; allow-list and max_clients apply to new connections.
+  listen_addr, device_addr and adding/removing a device are reported as
+  restart-only, never silently ignored.
+- A bad file keeps the running configuration. `scripts/smoke-reload.sh`
+  proves deny -> SIGHUP -> allow and broken-file retention with the real
+  binary; `make acceptance` runs it with no skips.
 
 ## Next
 
@@ -62,19 +74,17 @@ peer behavior, not line coverage. Work in this order.
    duplicate-address detection, switch CAM, privileged port 2404.
 3. **IEC 62351 posture.** Decide transparent vs terminating TLS; decide
    whether the proxy is an IEC 62351-5 authentication endpoint.
-4. **SIGHUP reload.** Whole-snapshot policy swap, like the other Shield
-   projects; never a half-applied mix.
-5. **Conformance matrix.** Use IEC TS 60870-5-604 as the reference for test
+4. **Conformance matrix.** Use IEC TS 60870-5-604 as the reference for test
    cases; add the cases the lab can run.
-6. **HA.** Active/standby pair without state replication; define what happens
+5. **HA.** Active/standby pair without state replication; define what happens
    to an in-flight command during failover.
-7. **Multi-master.** If an RTU accepts one connection, either enforce
+6. **Multi-master.** If an RTU accepts one connection, either enforce
    `max_clients: 1` or design safe session multiplexing.
-8. **Rate limiting and pacing.** Protect a fragile RTU from polling storms
+7. **Rate limiting and pacing.** Protect a fragile RTU from polling storms
    and bound per-master request rates, as the other Shield proxies do.
-9. **File transfer.** Inspect or explicitly block file/log transfer types;
+8. **File transfer.** Inspect or explicitly block file/log transfer types;
    v0.1 blocks them in read-only and otherwise treats them as writes.
-10. **DNP3.** Only after IEC-104 has a design partner; separate protocol
-    engine, not a port of this one.
-11. **Packaging.** systemd hardening, SBOM, signed releases, CRA technical
+9. **DNP3.** Only after IEC-104 has a design partner; separate protocol
+   engine, not a port of this one.
+10. **Packaging.** systemd hardening, SBOM, signed releases, CRA technical
     documentation.

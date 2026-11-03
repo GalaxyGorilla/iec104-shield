@@ -6,7 +6,7 @@ GO     ?= go
 VERSION ?= 0.1.0
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: all build test fmt-check vet staticcheck govulncheck race verify acceptance peers interop interop-required cover fuzz release release-all release-assets sbom vulnscan security clean
+.PHONY: all build test fmt-check vet staticcheck govulncheck race verify acceptance peers interop interop-required smoke-reload smoke-reload-required cover fuzz release release-all release-assets sbom vulnscan security clean
 
 all: build
 
@@ -37,7 +37,7 @@ verify: build test vet
 
 # Acceptance requires the independent wendy512/iec104 peer. A missing peer
 # is a failure, not a skip.
-acceptance: verify interop-required
+acceptance: verify interop-required smoke-reload-required
 
 # Release security gate. Requires staticcheck, govulncheck, syft and grype;
 # a missing tool fails this target.
@@ -55,6 +55,14 @@ interop: build
 
 interop-required: build
 	INTEROP_REQUIRED=1 sh scripts/interop-iec104.sh
+
+# smoke-reload proves SIGHUP applies a new policy to a running proxy and keeps
+# the old one when the new file is invalid. Exit 77 when the peer is missing.
+smoke-reload: build
+	sh scripts/smoke-reload.sh
+
+smoke-reload-required: build
+	SMOKE_REQUIRED=1 sh scripts/smoke-reload.sh
 
 # fuzz runs the parser fuzz targets for a short, reproducible interval.
 fuzz:

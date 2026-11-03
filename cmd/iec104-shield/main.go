@@ -214,23 +214,6 @@ func loadChecked(c cliFlags) (*config.Config, error) {
 func runGateway(args []string) int {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-
-	hup := make(chan os.Signal, 1)
-	signal.Notify(hup, syscall.SIGHUP)
-	defer signal.Stop(hup)
-	hupDone := make(chan struct{})
-	defer close(hupDone)
-	go func() {
-		for {
-			select {
-			case <-hup:
-				fmt.Fprintln(os.Stderr, "SIGHUP: reload is not implemented in v0.1; keeping the running config")
-			case <-hupDone:
-				return
-			}
-		}
-	}()
-
 	return runGatewayContext(ctx, args, os.Stdout, os.Stderr)
 }
 
@@ -269,6 +252,27 @@ func runGatewayContext(ctx context.Context, args []string, _ io.Writer, stderr i
 		return 1
 	}
 
+	// SIGHUP reloads the file in place; SIGINT/SIGTERM cancel ctx and shut
+	// down. Keeping the HUP loop separate means a reload can never consume
+	// the shutdown signal.
+	hup := make(chan os.Signal, 1)
+	signal.Notify(hup, syscall.SIGHUP)
+	defer signal.Stop(hup)
+	hupDone := make(chan struct{})
+	defer close(hupDone)
+	go func() {
+		for {
+			select {
+			case <-hup:
+				reload(c, runner, log)
+			case <-hupDone:
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
 	if cfg.Metrics.Addr != "" {
 		ln, err := observ.Listen(cfg.Metrics.Addr)
 		if err != nil {
@@ -306,6 +310,26 @@ func runGatewayContext(ctx context.Context, args []string, _ io.Writer, stderr i
 		}
 		return 0
 	}
+}
+
+// reload handles SIGHUP: re-read the config file and apply the reloadable
+// parts in place. A bad file keeps the running configuration. In flags mode
+// there is no file to re-read, so SIGHUP is a logged no-op.
+func reload(c cliFlags, r *proxy.Runner, log *zap.Logger) {
+	if *c.configPath == "" {
+		log.Warn("SIGHUP ignored: reload requires --config (flags-mode settings come from the command line)")
+		return
+	}
+	cfg, err := config.Load(*c.configPath)
+	if err != nil {
+		log.Error("reload: new config invalid, keeping the running configuration", zap.Error(err))
+		return
+	}
+	warnings := r.Reload(cfg)
+	for _, w := range warnings {
+		log.Warn("reload: " + w)
+	}
+	log.Info("SIGHUP: configuration reloaded", zap.Int("warnings", len(warnings)))
 }
 
 type checkResult struct {

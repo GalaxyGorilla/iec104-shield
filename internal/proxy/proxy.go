@@ -30,19 +30,52 @@ import (
 	"github.com/GalaxyGorilla/iec104-shield/internal/policy"
 )
 
-// Config is the runtime shape of one gateway.
+// Config is the listener identity of one gateway. Everything that a SIGHUP
+// can change lives in gatewayRuntime instead.
 type Config struct {
-	Name              string
-	ListenAddr        string
-	DeviceAddr        string
-	Policy            *policy.Policy
-	Allow             *policy.List
-	AllowUnknownTypes bool
-	MaxClients        int
-	DialTimeout       time.Duration
-	IdleTimeout       time.Duration
-	T1                time.Duration
-	K                 int
+	Name       string
+	ListenAddr string
+	DeviceAddr string
+}
+
+// gatewayRuntime is the set of config-derived knobs a reload can swap without
+// rebinding the listener or dropping a session. The whole struct is replaced
+// under rtMu, so a frame sees ONE consistent configuration rather than a
+// half-applied mix (for example a new policy with the old allow-list).
+//
+// ListenAddr and DeviceAddr are deliberately absent: they are bound to the
+// listener and the upstream dial, so a change requires a restart and is
+// reported by Runner.Reload instead of being silently ignored.
+type gatewayRuntime struct {
+	policy            *policy.Policy
+	allow             *policy.List
+	allowUnknownTypes bool
+	maxClients        int
+	dialTimeout       time.Duration
+	idleTimeout       time.Duration
+	t1                time.Duration
+	k                 int
+}
+
+func newGatewayRuntime(dev config.Device) (gatewayRuntime, error) {
+	pol, err := dev.CompilePolicy()
+	if err != nil {
+		return gatewayRuntime{}, err
+	}
+	allow, err := dev.CompileAllow()
+	if err != nil {
+		return gatewayRuntime{}, err
+	}
+	return gatewayRuntime{
+		policy:            pol,
+		allow:             allow,
+		allowUnknownTypes: dev.AllowUnknownTypes,
+		maxClients:        dev.MaxClients,
+		dialTimeout:       time.Duration(dev.DialTimeoutMs) * time.Millisecond,
+		idleTimeout:       time.Duration(dev.IdleTimeoutMs) * time.Millisecond,
+		t1:                time.Duration(dev.T1Ms) * time.Millisecond,
+		k:                 dev.K,
+	}, nil
 }
 
 // Metrics is the observability hook. A nil implementation is normalized to a
@@ -80,10 +113,16 @@ func metricsOrNop(m Metrics) Metrics {
 
 // Gateway is one listener<->outstation pair.
 type Gateway struct {
-	cfg   Config
-	log   *zap.SugaredLogger
-	met   Metrics
+	cfg Config
+	log *zap.SugaredLogger
+	met Metrics
+
 	audit *observ.Audit
+
+	// rt is swapped whole by a reload. Readers take a copy under RLock and
+	// never hold the lock across I/O.
+	rtMu sync.RWMutex
+	rt   gatewayRuntime
 
 	clients atomic.Int64
 
@@ -94,11 +133,7 @@ type Gateway struct {
 
 // New builds a gateway from a validated device config.
 func New(dev config.Device, log *zap.SugaredLogger, met Metrics, audit *observ.Audit) (*Gateway, error) {
-	pol, err := dev.CompilePolicy()
-	if err != nil {
-		return nil, err
-	}
-	allow, err := dev.CompileAllow()
+	rt, err := newGatewayRuntime(dev)
 	if err != nil {
 		return nil, err
 	}
@@ -107,23 +142,31 @@ func New(dev config.Device, log *zap.SugaredLogger, met Metrics, audit *observ.A
 	}
 	return &Gateway{
 		cfg: Config{
-			Name:              dev.Name,
-			ListenAddr:        dev.ListenAddr,
-			DeviceAddr:        dev.DeviceAddr,
-			Policy:            pol,
-			Allow:             allow,
-			AllowUnknownTypes: dev.AllowUnknownTypes,
-			MaxClients:        dev.MaxClients,
-			DialTimeout:       time.Duration(dev.DialTimeoutMs) * time.Millisecond,
-			IdleTimeout:       time.Duration(dev.IdleTimeoutMs) * time.Millisecond,
-			T1:                time.Duration(dev.T1Ms) * time.Millisecond,
-			K:                 dev.K,
+			Name:       dev.Name,
+			ListenAddr: dev.ListenAddr,
+			DeviceAddr: dev.DeviceAddr,
 		},
 		log:   log,
 		met:   metricsOrNop(met),
 		audit: audit,
+		rt:    rt,
 		conns: make(map[net.Conn]struct{}),
 	}, nil
+}
+
+// runtime returns one consistent snapshot. The value is copied, so callers
+// never hold rtMu across a blocking read or write.
+func (g *Gateway) runtime() gatewayRuntime {
+	g.rtMu.RLock()
+	defer g.rtMu.RUnlock()
+	return g.rt
+}
+
+// setRuntime swaps the reloadable configuration atomically.
+func (g *Gateway) setRuntime(rt gatewayRuntime) {
+	g.rtMu.Lock()
+	defer g.rtMu.Unlock()
+	g.rt = rt
 }
 
 // Name returns the configured device name.
@@ -131,8 +174,9 @@ func (g *Gateway) Name() string { return g.cfg.Name }
 
 // Serve accepts master connections until ln is closed.
 func (g *Gateway) Serve(ln net.Listener) error {
+	rt := g.runtime()
 	g.log.Infof("iec104 gateway %s: listening on %s -> %s (max_clients=%d read_only=%v)",
-		g.cfg.Name, ln.Addr(), g.cfg.DeviceAddr, g.cfg.MaxClients, g.cfg.Policy.ReadOnly())
+		g.cfg.Name, ln.Addr(), g.cfg.DeviceAddr, rt.maxClients, rt.policy.ReadOnly())
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
@@ -162,17 +206,18 @@ func (g *Gateway) Serve(ln net.Listener) error {
 }
 
 func (g *Gateway) admit(conn net.Conn) bool {
-	if n := g.clients.Add(1); n > int64(g.cfg.MaxClients) {
+	rt := g.runtime()
+	if n := g.clients.Add(1); n > int64(rt.maxClients) {
 		g.clients.Add(-1)
 		g.log.Warnf("iec104 gateway %s: rejecting %s: connection limit (%d) reached",
-			g.cfg.Name, conn.RemoteAddr(), g.cfg.MaxClients)
+			g.cfg.Name, conn.RemoteAddr(), rt.maxClients)
 		g.record(observ.AuditEvent{Event: "connection_rejected", Device: g.cfg.Name,
 			Client: conn.RemoteAddr().String(), Reason: "connection_limit"})
 		return false
 	}
-	if g.cfg.Allow != nil {
+	if rt.allow != nil {
 		ip := remoteIP(conn)
-		if ip == nil || !g.cfg.Allow.Allowed(ip) {
+		if ip == nil || !rt.allow.Allowed(ip) {
 			g.clients.Add(-1)
 			g.log.Warnf("iec104 gateway %s: rejecting %s: not in allow-list",
 				g.cfg.Name, conn.RemoteAddr())
@@ -188,7 +233,8 @@ func (g *Gateway) handle(client net.Conn) {
 	clientName := client.RemoteAddr().String()
 	g.record(observ.AuditEvent{Event: "connection", Device: g.cfg.Name, Client: clientName, Reason: "accepted"})
 
-	device, err := net.DialTimeout("tcp", g.cfg.DeviceAddr, g.cfg.DialTimeout)
+	rt := g.runtime()
+	device, err := net.DialTimeout("tcp", g.cfg.DeviceAddr, rt.dialTimeout)
 	if err != nil {
 		g.met.IncUpstreamError()
 		g.log.Warnf("iec104 gateway %s: upstream %s: %v", g.cfg.Name, g.cfg.DeviceAddr, err)
@@ -267,9 +313,10 @@ type session struct {
 }
 
 func newSession(g *Gateway, client, device net.Conn) *session {
+	rt := g.runtime()
 	s := &session{gw: g, client: client.RemoteAddr().String(), done: make(chan struct{})}
-	s.master = newLink("master", client, g.cfg.K, g.cfg.T1, g.cfg.IdleTimeout, s.done)
-	s.device = newLink("device", device, g.cfg.K, g.cfg.T1, 0, s.done)
+	s.master = newLink("master", client, rt.k, rt.t1, rt.idleTimeout, s.done)
+	s.device = newLink("device", device, rt.k, rt.t1, 0, s.done)
 	return s
 }
 
@@ -358,9 +405,14 @@ func (s *session) pump(src, dst *link, fromMaster bool) error {
 						Direction: dir, Reason: err.Error()})
 					return err
 				}
-				denied := !s.gw.cfg.Policy.Allowed(a)
+				// Read the snapshot AFTER the blocking frame read. Reading
+				// it before would delay a reload by one frame for a busy
+				// master and indefinitely for an idle one, so a revoked
+				// command could still execute after SIGHUP.
+				rt := s.gw.runtime()
+				denied := !rt.policy.Allowed(a)
 				reason := "command_policy"
-				if s.gw.cfg.Policy.ReadOnly() {
+				if rt.policy.ReadOnly() {
 					reason = "read_only"
 				}
 				if a.Partial && iec104.IsWrite(a.TypeID) {
@@ -369,7 +421,7 @@ func (s *session) pump(src, dst *link, fromMaster bool) error {
 					// types 125/127 are the standard example.
 					denied = true
 					reason = "unsupported_write_type"
-				} else if a.Partial && !s.gw.cfg.AllowUnknownTypes {
+				} else if a.Partial && !rt.allowUnknownTypes {
 					denied = true
 					reason = "unknown_type"
 				}

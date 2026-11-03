@@ -69,6 +69,7 @@ make build
 make test
 make verify
 make interop
+make smoke-reload
 make acceptance
 make cover
 make release-all
@@ -91,6 +92,8 @@ under `test/peers/iec104peer` and is deliberately not part of the main module.
 ## Current state
 
 v0.1 is a working software prototype with a passing independent-peer
-interop test and a loopback address-takeover proof. It is not yet validated
-against a physical RTU, IEC 62351 TLS/authentication, real ARP/NDP takeover,
-or an IEC-104 conformance suite.
+interop test, SBO and spontaneous-data coverage, a loopback address-takeover
+proof, and SIGHUP reload of the command policy, allow-list and limits. A
+listener or outstation address change is reported as restart-only. It is not
+yet validated against a physical RTU, IEC 62351 TLS/authentication, real
+ARP/NDP takeover, or an IEC-104 conformance suite.

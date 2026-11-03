@@ -13,6 +13,7 @@ successful forwarding.
 | Data plane | Denied command gets a negative confirmation and never reaches the outstation; allowed command does; interrogation data crosses |
 | Fail-closed | Upstream dial failure closes the front connection; stopping the proxy removes the old address |
 | Control frames | STARTDT/STOPDT/TESTFR relayed end to end |
+| Reload | SIGHUP applies policy/allow-list/limits to running sessions; a bad file keeps the running config |
 | Independent peer | `wendy512/iec104` master and outstation, neither end using this proxy's parser |
 | Real binary | `validate`, `selftest`, `gateway`, YAML and flags modes |
 
@@ -22,7 +23,8 @@ successful forwarding.
 make test          # gofmt + race suite
 make verify        # build + race suite + vet
 make interop       # independent peer; exit 77 if it cannot be built
-make acceptance    # verify + interop with INTEROP_REQUIRED=1
+make smoke-reload  # real binary: deny -> SIGHUP -> allow, then a bad file
+make acceptance    # verify + interop + smoke-reload, no skips
 make cover         # per-package coverage floors
 ```
 
@@ -58,15 +60,27 @@ It asserts:
 The peer lives in `test/peers/iec104peer` as a separate Go module. It is
 test-only; the proxy itself has no third-party protocol dependency.
 
+## SIGHUP reload
+
+`scripts/smoke-reload.sh` starts the real binary from a YAML file, proves a
+command is denied, rewrites the file to allow it, sends SIGHUP, and proves the
+same command now passes. It then writes a broken file and proves SIGHUP keeps
+the running configuration.
+
+Unit tests pin the same contract without signals: policy and
+`allow_unknown_types` apply to an already established session, allow-list and
+`max_clients` apply to new connections, a failed compile keeps the previous
+runtime, and listener/device-address changes are reported as restart-only.
+
 ## Coverage gate
 
 `make cover` enforces the floors in [`coverage.floors`](coverage.floors).
 The overall figure excludes the `covercheck` tooling package. Raise a floor
 when a package improves; add a test rather than lowering it.
 
-Current measured production coverage is about 81% overall, with the proxy at
-about 86%, policy at about 96%, parser at about 74%, config at about 79%,
-observability at about 93%, and the command at about 69%.
+Current measured production coverage is about 83% overall, with the proxy at
+about 88%, policy at about 96%, parser at about 74%, config at about 79%,
+observability at about 93%, and the command at about 74%.
 
 ## Focused mutation checks
 
