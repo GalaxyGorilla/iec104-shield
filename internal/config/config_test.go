@@ -1,6 +1,8 @@
 package config
 
 import (
+	"net"
+	"os"
 	"strings"
 	"testing"
 
@@ -166,5 +168,55 @@ func TestIntListScalarAndSequence(t *testing.T) {
 	}
 	if len(l) != 2 || l[1] != 46 {
 		t.Fatalf("list = %v", l)
+	}
+}
+
+func TestLoadFile(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/gateway.yaml"
+	if err := os.WriteFile(path, []byte(`
+devices:
+  - listen_addr: "127.0.0.1:2404"
+    device_addr: "127.0.0.1:2405"
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Devices) != 1 || c.Devices[0].MaxClients != defaultMaxClients {
+		t.Fatalf("config = %+v", c)
+	}
+	if c.Devices[0].CommandPolicy != nil {
+		t.Fatal("unexpected default command policy")
+	}
+}
+
+func TestApplyDefaults(t *testing.T) {
+	c := &Config{Devices: []Device{{ListenAddr: "127.0.0.1:2404", DeviceAddr: "127.0.0.1:2405"}}}
+	c.ApplyDefaults()
+	if c.Log.Level != "info" || c.Audit.MaxMB != defaultAuditMaxMB {
+		t.Fatalf("process defaults = %+v", c)
+	}
+	d := c.Devices[0]
+	if d.Name != d.DeviceAddr || d.MaxClients != defaultMaxClients ||
+		d.DialTimeoutMs != defaultDialTimeoutMs || d.T1Ms != defaultT1Ms || d.K != defaultK {
+		t.Fatalf("device defaults = %+v", d)
+	}
+}
+
+func TestCompileAllow(t *testing.T) {
+	d := Device{Allow: []string{"10.0.0.0/8"}}
+	l, err := d.CompileAllow()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l == nil || !l.Allowed(net.ParseIP("10.1.2.3")) || l.Allowed(net.ParseIP("192.0.2.1")) {
+		t.Fatal("compiled allow-list is wrong")
+	}
+	bad := Device{Allow: []string{"not-an-ip"}}
+	if _, err := bad.CompileAllow(); err == nil {
+		t.Fatal("invalid allow entry accepted")
 	}
 }

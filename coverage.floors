@@ -3,11 +3,11 @@
 # Floors sit just below the measured value so they catch a real regression
 # without failing on a one-line refactor. Raise a floor when a package
 # improves; lower one only with a comment explaining why.
-ALL                62
-cmd/iec104-shield  30
-internal/config    70
-internal/iec104    70
-internal/observ    58
-internal/policy    80
-internal/proxy     67
+ALL                72
+cmd/iec104-shield  38
+internal/config    75
+internal/iec104    72
+internal/observ    88
+internal/policy    92
+internal/proxy     82
 scripts/covercheck skip

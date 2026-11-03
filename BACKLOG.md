@@ -23,6 +23,36 @@
 - Loopback address-takeover proof (old address disappears on stop).
 - Coverage floors and release targets.
 
+## Quality and test backlog (active)
+
+The v0.1 happy path works. The next risk is the sequence/state machine and
+peer behavior, not line coverage. Work in this order.
+
+1. **Programmable peer harness.** Extended the in-process outstation/master:
+   multiple connections, spontaneous frames, connection closes, partial
+   frames, thread-safe sequence handling. Status: done.
+2. **Sequence/state matrix.** Wrap, duplicate, gap, stale ack, ack beyond send,
+   k-window saturation, t1 expiry, concurrent sends, outstation close,
+   partial frame. Status: done.
+3. **Policy matrix including SBO.** Every write family, read-only, default
+   deny/allow, allow/deny rules, multi-object, no-IOA, select/execute. Status:
+   done.
+4. **Spontaneous and multi-master traffic.** Device-initiated data and two
+   masters with separate upstream sessions. Status: done.
+5. **Audit and metrics wiring.** Allowed/denied command records, audit file
+   rotation, metric counters. Status: done.
+6. **CLI and observability tests.** `probe`, `config.Load`, `Runner`, audit
+   file, metrics serve. Status: done for probe/config/Runner/observ; the
+   `gateway`, `validate` and `selftest` command paths still need tests.
+7. **Mutation checks.** Broke sequence validation, policy deny, P/N bit,
+   unknown-type deny and ack validation; each mutation was caught by a test.
+   Concurrent-send ordering still needs a deterministic mutation hook. Status:
+   done for the five critical invariants; one follow-up.
+8. **Independent peer expansion.** SBO, spontaneous data, outstation restart,
+   a second implementation. Status: pending.
+9. **Coverage floors.** Raised to 72% overall, 82% proxy, 92% policy, 88%
+   observability. Status: done.
+
 ## Next
 
 1. **Real RTU lab.** One physical or vendor simulator: interrogation,

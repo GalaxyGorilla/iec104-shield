@@ -60,9 +60,22 @@ test-only; the proxy itself has no third-party protocol dependency.
 The overall figure excludes the `covercheck` tooling package. Raise a floor
 when a package improves; add a test rather than lowering it.
 
-Current measured production coverage is about 65% overall, with the proxy at
-about 73%, policy at about 84%, parser at about 74%, config at about 74%, and
-the command at about 35%.
+Current measured production coverage is about 75% overall, with the proxy at
+about 86%, policy at about 96%, parser at about 74%, config at about 79%,
+observability at about 93%, and the command at about 42%.
+
+## Focused mutation checks
+
+Not full mutation testing. Each row was applied to a clean tree, the named test
+was run, the test failed, and the file was restored.
+
+| Invariant broken | Mutation | Test that caught it |
+|---|---|---|
+| Negative confirmation P/N bit | `0x40` → `0x00` in `NegativeConfirmation` | `TestNegativeConfirmation` |
+| Sequence-gap rejection | `seq != recvSeq` → `false && seq != recvSeq` | `TestSequenceGapCloses` |
+| Policy deny-overrides | `!r.Allow` → `false && !r.Allow` | `TestDenyOverrides` |
+| Unknown-type fail-closed | `a.Partial && !allowUnknown` → `false && ...` | `TestUnknownMasterTypeDeniedByDefault` |
+| Ack-beyond-send rejection | `delta > outstanding` → `false && ...` | `TestLinkAckValidation` |
 
 ## Remaining hardware boundary
 

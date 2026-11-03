@@ -160,3 +160,141 @@ func TestList(t *testing.T) {
 		t.Fatal("invalid entry accepted")
 	}
 }
+
+func TestWriteTypeFamilies(t *testing.T) {
+	writeTypes := []uint8{
+		45, 46, 47, 48, 49, 50, 51,
+		58, 59, 60, 61, 62, 63, 64,
+		103, 105, 106,
+		110, 111, 112, 113,
+		120, 121, 122, 123, 124, 125, 126, 127,
+	}
+	readTypes := []uint8{1, 3, 5, 9, 11, 13, 30, 36, 70, 100, 101, 102, 104, 107}
+
+	asdu := func(typ uint8) iec104.ASDU {
+		return iec104.ASDU{
+			TypeID: typ, CommonAddr: 1,
+			Objects: []iec104.Object{{IOA: 1000, Info: []byte{0x01}}},
+		}
+	}
+
+	readOnly, err := New(true, false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defaultDeny, err := New(false, false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defaultAllow, err := New(false, true, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, typ := range writeTypes {
+		if readOnly.Allowed(asdu(typ)) {
+			t.Fatalf("read-only allowed write type %d", typ)
+		}
+		if defaultDeny.Allowed(asdu(typ)) {
+			t.Fatalf("default deny allowed write type %d", typ)
+		}
+		if !defaultAllow.Allowed(asdu(typ)) {
+			t.Fatalf("default allow refused write type %d", typ)
+		}
+	}
+	for _, typ := range readTypes {
+		if !readOnly.Allowed(asdu(typ)) {
+			t.Fatalf("read-only refused read type %d", typ)
+		}
+		if !defaultDeny.Allowed(asdu(typ)) {
+			t.Fatalf("default deny refused read type %d", typ)
+		}
+	}
+}
+
+func TestMultiObjectAllowMustCover(t *testing.T) {
+	from, to := uint32(1000), uint32(2000)
+	allow, err := New(false, false, []Rule{{
+		Types: []uint8{45}, IOAFrom: &from, IOATo: &to, Allow: true,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	asdu := func(ioas ...uint32) iec104.ASDU {
+		a := iec104.ASDU{TypeID: 45, CommonAddr: 1}
+		for _, ioa := range ioas {
+			a.Objects = append(a.Objects, iec104.Object{IOA: ioa, Info: []byte{0x01}})
+		}
+		return a
+	}
+	if !allow.Allowed(asdu(1000, 2000)) {
+		t.Fatal("allow rule did not cover a fully contained multi-object command")
+	}
+	if allow.Allowed(asdu(1000, 2001)) {
+		t.Fatal("allow rule covered a command that straddles its range")
+	}
+
+	badFrom, badTo := uint32(1500), uint32(1500)
+	deny, err := New(false, true, []Rule{{
+		Types: []uint8{45}, IOAFrom: &badFrom, IOATo: &badTo, Allow: false,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if deny.Allowed(asdu(1000, 1500)) {
+		t.Fatal("deny rule did not match an intersecting multi-object command")
+	}
+	if !deny.Allowed(asdu(1000, 1501)) {
+		t.Fatal("deny rule matched a command outside its range")
+	}
+}
+
+func TestNoIOAUnscopedRule(t *testing.T) {
+	clock := iec104.ASDU{TypeID: 103, CommonAddr: 1}
+	from, to := uint32(0), uint32(0)
+	scoped, err := New(false, false, []Rule{{
+		Types: []uint8{103}, IOAFrom: &from, IOATo: &to, Allow: true,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if scoped.Allowed(clock) {
+		t.Fatal("IOA-scoped rule matched a no-IOA command")
+	}
+	unscoped, err := New(false, false, []Rule{{Types: []uint8{103}, Allow: true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !unscoped.Allowed(clock) {
+		t.Fatal("unscoped rule did not allow a no-IOA command")
+	}
+}
+
+func TestPolicyAccessors(t *testing.T) {
+	p, err := New(true, false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !p.ReadOnly() || p.DefaultAllow() || p.Len() != 0 {
+		t.Fatalf("accessors = readOnly=%t defaultAllow=%t len=%d", p.ReadOnly(), p.DefaultAllow(), p.Len())
+	}
+	if (*Policy)(nil).ReadOnly() || (*Policy)(nil).DefaultAllow() || (*Policy)(nil).Len() != 0 {
+		t.Fatal("nil policy accessors are not zero")
+	}
+}
+
+func TestPolicyValidation(t *testing.T) {
+	if _, err := New(true, false, []Rule{{Allow: true}}); err == nil {
+		t.Fatal("read_only + rules accepted")
+	}
+	from, to := uint32(10), uint32(5)
+	if _, err := New(false, false, []Rule{{IOAFrom: &from, IOATo: &to}}); err == nil {
+		t.Fatal("inverted IOA range accepted")
+	}
+	if _, err := New(false, false, []Rule{{Types: []uint8{0}}}); err == nil {
+		t.Fatal("type 0 accepted")
+	}
+	if _, err := New(false, false, []Rule{{IOAFrom: &from}}); err == nil {
+		t.Fatal("half-open IOA range accepted")
+	}
+}

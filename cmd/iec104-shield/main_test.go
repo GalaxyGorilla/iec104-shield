@@ -1,10 +1,14 @@
 package main
 
 import (
+	"net"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/spf13/pflag"
+
+	"github.com/GalaxyGorilla/iec104-shield/internal/iec104"
 )
 
 func parseFlags(t *testing.T, args ...string) cliFlags {
@@ -96,5 +100,71 @@ func TestFlagsConfigRequiresEndpoints(t *testing.T) {
 	c := parseFlags(t)
 	if _, err := flagsConfig(c); err == nil {
 		t.Fatal("missing endpoints accepted")
+	}
+}
+
+func TestProbe(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		for {
+			f, err := iec104.ReadFrame(conn)
+			if err != nil {
+				return
+			}
+			if f.Type == iec104.UFrame && f.U == iec104.UTestFRActive {
+				_, _ = conn.Write(iec104.NewU(iec104.UTestFRConfirm))
+				return
+			}
+		}
+	}()
+	if err := probe(ln.Addr().String(), time.Second); err != nil {
+		t.Fatalf("probe: %v", err)
+	}
+	_ = ln.Close()
+	<-done
+}
+
+func TestProbeTimeout(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		for {
+			if _, err := iec104.ReadFrame(conn); err != nil {
+				return
+			}
+		}
+	}()
+	if err := probe(ln.Addr().String(), 100*time.Millisecond); err == nil {
+		t.Fatal("probe succeeded without a TESTFR confirmation")
+	}
+}
+
+func TestProbeDialError(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr := ln.Addr().String()
+	_ = ln.Close()
+	if err := probe(addr, 100*time.Millisecond); err == nil {
+		t.Fatal("probe succeeded against a closed port")
 	}
 }
