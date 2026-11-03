@@ -212,6 +212,8 @@ func startFakeOn(t *testing.T, ln net.Listener, handler func(*testPeer, iec104.A
 						switch fr.U {
 						case iec104.UStartDTActive:
 							_ = p.sendU(iec104.UStartDTConfirm)
+						case iec104.UStopDTActive:
+							_ = p.sendU(iec104.UStopDTConfirm)
 						case iec104.UTestFRActive:
 							_ = p.sendU(iec104.UTestFRConfirm)
 						}
@@ -635,6 +637,34 @@ func TestTestFRIsForwarded(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("TESTFR was not forwarded end to end")
+	}
+}
+
+func TestStartStopDTAreForwarded(t *testing.T) {
+	fake := startFake(t, nil)
+	defer fake.close()
+	addr, stop := startGateway(t, testDevice(fake.addr()))
+	defer stop()
+
+	m := dialMaster(t, addr)
+	defer m.close()
+	if err := m.sendU(iec104.UStopDTActive); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.readU(iec104.UStopDTConfirm); err != nil {
+		t.Fatal(err)
+	}
+	var started, stopped bool
+	for _, u := range fake.uFrames() {
+		switch u {
+		case iec104.UStartDTActive:
+			started = true
+		case iec104.UStopDTActive:
+			stopped = true
+		}
+	}
+	if !started || !stopped {
+		t.Fatalf("control frames not relayed: start=%t stop=%t", started, stopped)
 	}
 }
 

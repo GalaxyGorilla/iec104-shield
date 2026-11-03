@@ -92,6 +92,9 @@ peer behavior, not line coverage. Work in this order.
 - Outstation restart: the master session closes when the outstation dies, and
   a restarted outstation on the same address gets a fresh upstream connection
   for the next master.
+- `docs/conformance-matrix.md` maps APCI, sequence, ASDU, command, shielding
+  and interop behaviour to tests, and names the remaining lab-only gaps
+  (t2/t3/w, physical RTU, real ARP/NDP, external conformance suite).
 
 ## Done — packaging
 
@@ -111,14 +114,12 @@ peer behavior, not line coverage. Work in this order.
    duplicate-address detection, switch CAM, privileged port 2404.
 3. **IEC 62351 posture.** Decide transparent vs terminating TLS; decide
    whether the proxy is an IEC 62351-5 authentication endpoint.
-4. **Conformance matrix.** Use IEC TS 60870-5-604 as the reference for test
-   cases; add the cases the lab can run.
-5. **HA.** Active/standby pair without state replication; define what happens
+4. **HA.** Active/standby pair without state replication; define what happens
    to an in-flight command during failover.
-6. **Multi-master.** If an RTU accepts one connection, either enforce
+5. **Multi-master.** If an RTU accepts one connection, either enforce
    `max_clients: 1` or design safe session multiplexing.
-7. **DNP3.** Only after IEC-104 has a design partner; separate protocol
+6. **DNP3.** Only after IEC-104 has a design partner; separate protocol
    engine, not a port of this one.
-8. **Signed releases and update channel.** Sign binaries and SBOMs, publish
+7. **Signed releases and update channel.** Sign binaries and SBOMs, publish
    checksums, and define how an appliance verifies an update before installing
    it.

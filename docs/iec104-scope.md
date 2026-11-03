@@ -1,8 +1,10 @@
 # IEC 104 Shield — scope and design
 
 **Status:** v0.1 implementation, 2026-11-03. Software prototype; not yet
-validated against a physical RTU or a utility conformance suite. The CRA
-working outline lives in [cra-technical-file.md](cra-technical-file.md).
+validated against a physical RTU or a utility conformance suite. The
+behaviour-to-test mapping is in
+[conformance-matrix.md](conformance-matrix.md); the CRA working outline lives
+in [cra-technical-file.md](cra-technical-file.md).
 
 ## Why IEC-104 for a Germany/Europe focus
 

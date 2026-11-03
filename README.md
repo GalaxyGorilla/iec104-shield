@@ -212,7 +212,8 @@ no bypass in v0.1.
 - A full IEC-104 conformance suite.
 
 See [docs/iec104-scope.md](docs/iec104-scope.md) for the design reasoning and
-the risk list, and
+the risk list, [docs/conformance-matrix.md](docs/conformance-matrix.md) for
+the behaviour-to-test mapping and lab gaps, and
 [docs/cra-technical-file.md](docs/cra-technical-file.md) for the CRA working
 outline.
 
