@@ -213,9 +213,11 @@ no bypass in v0.1.
 
 See [docs/iec104-scope.md](docs/iec104-scope.md) for the design reasoning and
 the risk list, [docs/conformance-matrix.md](docs/conformance-matrix.md) for
-the behaviour-to-test mapping and lab gaps, and
-[docs/cra-technical-file.md](docs/cra-technical-file.md) for the CRA working
-outline.
+the behaviour-to-test mapping and lab gaps,
+[docs/iec62351-posture.md](docs/iec62351-posture.md) for the TLS/authentication
+decision, [docs/ha-design.md](docs/ha-design.md) for the active/standby
+semantics, and [docs/cra-technical-file.md](docs/cra-technical-file.md) for
+the CRA working outline.
 
 ## Build and test
 

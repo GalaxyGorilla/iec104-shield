@@ -104,6 +104,8 @@ plus shared pacing for master-to-outstation I-frames. A listener or
 outstation address change is reported as restart-only. Packaging includes a
 hardened systemd unit with SIGHUP reload, SBOM/grype release gates, and a CRA
 technical-file outline. `docs/conformance-matrix.md` maps behaviour to tests
-and names the remaining lab gaps. It is not yet validated against a physical
-RTU, IEC 62351 TLS/authentication, real ARP/NDP takeover, or an IEC-104
-conformance suite.
+and names the remaining lab gaps. The next protocol slice is terminating TLS
+on the master leg (`docs/iec62351-posture.md`); the HA shape is
+active/standby without state replication (`docs/ha-design.md`). It is not yet
+validated against a physical RTU, IEC 62351 TLS/authentication, real ARP/NDP
+takeover, or an IEC-104 conformance suite.

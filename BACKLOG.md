@@ -96,6 +96,17 @@ peer behavior, not line coverage. Work in this order.
   and interop behaviour to tests, and names the remaining lab-only gaps
   (t2/t3/w, physical RTU, real ARP/NDP, external conformance suite).
 
+## Done — design decisions
+
+- IEC 62351 posture: terminate TLS on the master leg first (option B), with a
+  TLS upstream leg as the same code path (option C). IEC 62351-5 ASDU
+  authentication is deferred until a design partner requires it. See
+  `docs/iec62351-posture.md`.
+- HA: active/standby with a shared service address and no session-state
+  replication. The standby stays passive and never dials the RTU; failover
+  loses the session and never replays an in-flight command. See
+  `docs/ha-design.md`.
+
 ## Done — packaging
 
 - Hardened systemd unit: dedicated user, `CAP_NET_BIND_SERVICE` only,
@@ -115,10 +126,11 @@ peer behavior, not line coverage. Work in this order.
    spontaneous data, select-before-operate, clock sync, redundant channels.
 2. **Real IP takeover.** Lab interface or two NICs; ARP/NDP, gratuitous ARP,
    duplicate-address detection, switch CAM, privileged port 2404.
-3. **IEC 62351 posture.** Decide transparent vs terminating TLS; decide
-   whether the proxy is an IEC 62351-5 authentication endpoint.
-4. **HA.** Active/standby pair without state replication; define what happens
-   to an in-flight command during failover.
+3. **IEC 62351-3 TLS implementation.** Option B from
+   `docs/iec62351-posture.md`: terminate TLS on the master leg, keep the RTU
+   leg plaintext, and add the upstream TLS variant. IEC 62351-5 stays later.
+4. **HA implementation.** Active/standby per `docs/ha-design.md`: shared
+   service address, passive standby, no state replication, no command replay.
 5. **Multi-master.** If an RTU accepts one connection, either enforce
    `max_clients: 1` or design safe session multiplexing.
 6. **DNP3.** Only after IEC-104 has a design partner; separate protocol

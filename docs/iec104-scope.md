@@ -3,8 +3,10 @@
 **Status:** v0.1 implementation, 2026-11-03. Software prototype; not yet
 validated against a physical RTU or a utility conformance suite. The
 behaviour-to-test mapping is in
-[conformance-matrix.md](conformance-matrix.md); the CRA working outline lives
-in [cra-technical-file.md](cra-technical-file.md).
+[conformance-matrix.md](conformance-matrix.md); the TLS/authentication
+decision is in [iec62351-posture.md](iec62351-posture.md), the active/standby
+semantics in [ha-design.md](ha-design.md), and the CRA working outline in
+[cra-technical-file.md](cra-technical-file.md).
 
 ## Why IEC-104 for a Germany/Europe focus
 
