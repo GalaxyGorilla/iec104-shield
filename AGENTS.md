@@ -18,9 +18,10 @@ IEC-104 master/outstation stack.
 4. **Unknown master-to-RTU types are refused** unless `allow_unknown_types` is
    explicitly set. A write type whose objects cannot be parsed is always
    refused.
-5. **One upstream connection per master.** IEC-104 is stateful; do not
-   multiplex sessions onto one upstream connection without redesigning the
-   sequence and command state.
+5. **One upstream connection per master.** IEC-104 is stateful; for an RTU
+   that accepts one connection set `max_clients: 1`. Do not multiplex
+   sessions onto one upstream connection without redesigning the sequence
+   and command state.
 6. **Read-only still allows interrogation, counter interrogation, read and
    test.** It blocks process/system/parameter/file writes.
 7. **Policy evaluation is deny-overrides.** An allow rule with an IOA range

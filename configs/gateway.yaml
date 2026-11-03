@@ -31,8 +31,8 @@ devices:
     # the site uses private command types and the risk is accepted.
     allow_unknown_types: false
 
-    # One upstream session per master. Set to 1 for an RTU that accepts a
-    # single TCP connection.
+    # One upstream session per master. Set max_clients: 1 for an RTU that
+    # accepts a single TCP connection; a second master is then rejected.
     dial_timeout_ms: 5000
     t1_ms: 15000
     k: 12

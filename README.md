@@ -233,6 +233,16 @@ The upstream leg can be TLS too (option C in
 The upstream handshake is eager: a bad certificate fails the dial and closes
 the master session. Both legs can be TLS at the same time.
 
+## Multiple masters
+
+IEC-104 is stateful, so the proxy opens **one upstream connection per
+master**. It does not multiplex masters onto one RTU connection: each session
+has its own N(S)/N(R), policy snapshot and command state. For an RTU that
+accepts only one TCP connection, set `max_clients: 1`; a second master is then
+rejected at the front door. Safe multiplexing would require a redesign of the
+sequence and command state, not a flag. The proxy logs a warning at startup
+when `max_clients` is greater than 1.
+
 ## Address takeover
 
 ```

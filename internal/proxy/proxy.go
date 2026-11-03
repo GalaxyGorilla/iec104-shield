@@ -232,6 +232,10 @@ func (g *Gateway) Serve(ln net.Listener) error {
 	rt := g.runtime()
 	g.log.Infof("iec104 gateway %s: listening on %s -> %s (max_clients=%d read_only=%v)",
 		g.cfg.Name, ln.Addr(), g.cfg.DeviceAddr, rt.maxClients, rt.policy.ReadOnly())
+	if rt.maxClients > 1 {
+		g.log.Warnf("iec104 gateway %s: max_clients=%d opens one upstream connection per master; use max_clients: 1 for an RTU that accepts one connection",
+			g.cfg.Name, rt.maxClients)
+	}
 	for {
 		conn, err := ln.Accept()
 		if err != nil {

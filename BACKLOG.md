@@ -115,14 +115,18 @@ peer behavior, not line coverage. Work in this order.
 
 ## Done — design decisions
 
-- IEC 62351 posture: terminate TLS on the master leg first (option B, now
-  implemented), with a TLS upstream leg as the same code path (option C,
-  still to do). IEC 62351-5 ASDU authentication is deferred until a design
-  partner requires it. See `docs/iec62351-posture.md`.
+- IEC 62351 posture: terminate TLS on the master leg (option B) and support
+  the same code path on the upstream leg (option C); both are implemented.
+  IEC 62351-5 ASDU authentication is deferred until a design partner
+  requires it. See `docs/iec62351-posture.md`.
 - HA: active/standby with a shared service address and no session-state
   replication. The standby stays passive and never dials the RTU; failover
   loses the session and never replays an in-flight command. See
   `docs/ha-design.md`.
+- Multi-master: one upstream connection per master is the v0.1 shape.
+  `max_clients: 1` is the supported deployment for a single-connection RTU;
+  safe multiplexing would be a state-machine redesign, not a flag. The proxy
+  warns at startup when `max_clients > 1`.
 
 ## Done — packaging
 
@@ -147,10 +151,8 @@ peer behavior, not line coverage. Work in this order.
    it; the TLS posture is in `docs/iec62351-posture.md`.
 4. **HA implementation.** Active/standby per `docs/ha-design.md`: shared
    service address, passive standby, no state replication, no command replay.
-5. **Multi-master.** If an RTU accepts one connection, either enforce
-   `max_clients: 1` or design safe session multiplexing.
-6. **DNP3.** Only after IEC-104 has a design partner; separate protocol
+5. **DNP3.** Only after IEC-104 has a design partner; separate protocol
    engine, not a port of this one.
-7. **Signed releases and update channel.** Sign binaries and SBOMs, publish
+6. **Signed releases and update channel.** Sign binaries and SBOMs, publish
    checksums, and define how an appliance verifies an update before installing
    it.
