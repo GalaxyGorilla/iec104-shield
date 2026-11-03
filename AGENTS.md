@@ -51,6 +51,9 @@ IEC-104 master/outstation stack.
 - A denied or rate-limited I-frame is answered with a negative activation
   confirmation and never dropped; dropping it would desynchronise N(S).
   Rate limiting and pacing apply only to master-to-RTU frames.
+- TLS terminates on the master leg. Complete the handshake **before** dialing
+  the outstation, so a plain or unauthenticated client cannot cause an
+  upstream connection.
 
 ## Layout
 
@@ -97,8 +100,8 @@ under `test/peers/iec104peer` and is deliberately not part of the main module.
 
 v0.1 is a working software prototype with interop against two independent
 IEC-104 stacks (`wendy512/iec104` and `otfabric/go-iec104`), SBO,
-spontaneous-data and outstation-restart coverage, a loopback
-address-takeover proof, SIGHUP reload
+spontaneous-data and outstation-restart coverage, master-facing IEC 62351-3
+TLS with optional mTLS, a loopback address-takeover proof, SIGHUP reload
 of the command policy, allow-list and limits, and token-bucket rate limiting
 plus shared pacing for master-to-outstation I-frames. A listener or
 outstation address change is reported as restart-only. Packaging includes a

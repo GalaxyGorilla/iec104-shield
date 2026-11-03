@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/GalaxyGorilla/iec104-shield/internal/config"
 )
@@ -84,6 +85,9 @@ func restartRequired(gw *Gateway, dev config.Device) []string {
 	}
 	if old.DeviceAddr != dev.DeviceAddr {
 		msgs = append(msgs, fmt.Sprintf("device_addr %s -> %s", old.DeviceAddr, dev.DeviceAddr))
+	}
+	if !reflect.DeepEqual(gw.tlsSpec, dev.TLS) {
+		msgs = append(msgs, "tls block changed")
 	}
 	return msgs
 }

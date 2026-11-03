@@ -55,6 +55,7 @@ master ──► old RTU address ──► iec104-shield ──► RTU at new ad
 | Audit | Allowed and denied commands recorded | `TestAuditAllowedAndDeniedCommands` |
 | Update/reload | SIGHUP applies one atomic snapshot; bad file kept | `TestReload*`, `scripts/smoke-reload.sh` |
 | Cross-implementation interop | Two independent stacks | `scripts/interop-iec104.sh` |
+| Master-leg transport security | IEC 62351-3 TLS, optional mTLS | `TestTLSGateway`, interop TLS scenario |
 | Vulnerability handling | `govulncheck`, SBOM, grype scan | `make security`, `scripts/sbom.sh` |
 
 ## 5. Risk assessment (initial)
@@ -62,8 +63,8 @@ master ──► old RTU address ──► iec104-shield ──► RTU at new ad
 | Risk | Mitigation | Residual |
 |---|---|---|
 | Unauthorized breaker command | Default-deny write policy, deny-overrides, negative confirmation | Misconfigured explicit allow rules remain the operator's responsibility |
-| Replay or spoofed master | IP allow-list only in v0.1 | No IEC 62351-5 authentication; network segmentation required |
-| Eavesdropping / MITM | None in v0.1 | IEC 62351-3 TLS is not implemented |
+| Replay or spoofed master | IP allow-list; optional master-leg TLS/mTLS | No IEC 62351-5 ASDU authentication; network segmentation still required |
+| Eavesdropping / MITM on the master leg | IEC 62351-3 TLS (option B) | RTU leg remains plaintext; upstream TLS not implemented |
 | DoS against the RTU | Connection cap, rate limit, pacing | A determined master can still consume its own session |
 | Compromised appliance | systemd hardening, minimal capabilities, no shell | Single box is a single point of failure; no HA |
 | Supply-chain vulnerability | Pinned modules, govulncheck, SBOM | Signed releases and reproducible-build attestations still to add |
@@ -101,7 +102,8 @@ master ──► old RTU address ──► iec104-shield ──► RTU at new ad
 
 ## 9. Known gaps before a conformity claim
 
-- No IEC 62351-3 TLS or IEC 62351-5 authentication.
+- No IEC 62351-5 ASDU authentication and no upstream TLS leg. Master-leg
+  IEC 62351-3 TLS is implemented.
 - No physical RTU lab or utility conformance suite.
 - No real ARP/NDP takeover validation; the current proof is loopback only.
 - No HA pair or state replication.

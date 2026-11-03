@@ -252,3 +252,28 @@ devices:
 		t.Fatal("negative min_interval_ms accepted")
 	}
 }
+
+func TestTLSValidation(t *testing.T) {
+	cases := []string{
+		`
+devices:
+  - listen_addr: "127.0.0.1:2404"
+    device_addr: "127.0.0.1:2405"
+    tls:
+      cert: "/nonexistent/cert.pem"
+      key: "/nonexistent/key.pem"
+`,
+		`
+devices:
+  - listen_addr: "127.0.0.1:2404"
+    device_addr: "127.0.0.1:2405"
+    tls:
+      cert: "/nonexistent/cert.pem"
+`,
+	}
+	for _, in := range cases {
+		if _, err := Decode(strings.NewReader(in)); err == nil {
+			t.Fatalf("invalid TLS config accepted:\n%s", in)
+		}
+	}
+}

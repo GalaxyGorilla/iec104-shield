@@ -15,6 +15,7 @@ package proxy
 
 import (
 	"bufio"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -117,11 +118,12 @@ func metricsOrNop(m Metrics) Metrics {
 
 // Gateway is one listener<->outstation pair.
 type Gateway struct {
-	cfg Config
-	log *zap.SugaredLogger
-	met Metrics
-
-	audit *observ.Audit
+	cfg     Config
+	log     *zap.SugaredLogger
+	met     Metrics
+	audit   *observ.Audit
+	tlsCfg  *tls.Config
+	tlsSpec *config.TLSConfig
 
 	// rt is swapped whole by a reload. Readers take a copy under RLock and
 	// never hold the lock across I/O.
@@ -147,6 +149,10 @@ func New(dev config.Device, log *zap.SugaredLogger, met Metrics, audit *observ.A
 	if err != nil {
 		return nil, err
 	}
+	tlsCfg, err := tlsConfigFor(dev)
+	if err != nil {
+		return nil, err
+	}
 	if log == nil {
 		log = zap.NewNop().Sugar()
 	}
@@ -156,11 +162,13 @@ func New(dev config.Device, log *zap.SugaredLogger, met Metrics, audit *observ.A
 			ListenAddr: dev.ListenAddr,
 			DeviceAddr: dev.DeviceAddr,
 		},
-		log:   log,
-		met:   metricsOrNop(met),
-		audit: audit,
-		rt:    rt,
-		conns: make(map[net.Conn]struct{}),
+		log:     log,
+		met:     metricsOrNop(met),
+		audit:   audit,
+		tlsCfg:  tlsCfg,
+		tlsSpec: dev.TLS,
+		rt:      rt,
+		conns:   make(map[net.Conn]struct{}),
 	}, nil
 }
 
@@ -270,6 +278,23 @@ func (g *Gateway) admit(conn net.Conn) bool {
 
 func (g *Gateway) handle(client net.Conn) {
 	clientName := client.RemoteAddr().String()
+
+	// Terminate TLS before dialing the outstation. A plain client or a
+	// client without a required certificate must never cause an upstream
+	// connection to the RTU.
+	if tc, ok := client.(*tls.Conn); ok {
+		_ = tc.SetDeadline(time.Now().Add(5 * time.Second))
+		if err := tc.Handshake(); err != nil {
+			g.met.IncConnRejected()
+			g.log.Warnf("iec104 gateway %s: TLS handshake with %s failed: %v",
+				g.cfg.Name, clientName, err)
+			g.record(observ.AuditEvent{Event: "connection_rejected", Device: g.cfg.Name,
+				Client: clientName, Reason: "tls_handshake"})
+			return
+		}
+		_ = tc.SetDeadline(time.Time{})
+	}
+
 	g.record(observ.AuditEvent{Event: "connection", Device: g.cfg.Name, Client: clientName, Reason: "accepted"})
 
 	rt := g.runtime()

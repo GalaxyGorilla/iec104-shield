@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net"
 	"sync"
@@ -46,6 +47,12 @@ func (r *Runner) Run() error {
 		if err != nil {
 			r.closeListeners()
 			return fmt.Errorf("bind %s (device %s): %w", gw.cfg.ListenAddr, gw.cfg.Name, err)
+		}
+		if gw.tlsCfg != nil {
+			// The handshake stays lazy: tls.Listener.Accept returns before
+			// the handshake, so a slow or hostile client cannot block the
+			// accept loop. handle() completes it in the session goroutine.
+			ln = tls.NewListener(ln, gw.tlsCfg)
 		}
 		r.lns = append(r.lns, ln)
 	}

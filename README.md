@@ -5,10 +5,10 @@ substations. One static Go binary. The master keeps its configuration; the
 RTU keeps speaking plain IEC-104; the proxy does the command policy, audit and
 fail-closed takeover.
 
-**Status:** v0.1 software prototype. The independent-peer loopback proof
-passes. Physical RTU validation, IEC 62351 TLS/authentication, conformance
-testing and real IP takeover are still open. Do not treat this as a certified
-utility product yet.
+**Status:** v0.1 software prototype. The independent-peer loopback proof and
+master-facing IEC 62351-3 TLS pass. Physical RTU validation, IEC 62351-5
+authentication, conformance testing and real IP takeover are still open. Do
+not treat this as a certified utility product yet.
 
 ```mermaid
 flowchart LR
@@ -73,6 +73,11 @@ devices:
     # Protect a fragile RTU: bound forwarded requests and space them out.
     rate_per_sec: 20
     min_interval_ms: 50
+    # Optional master-facing TLS (IEC 62351-3). Add client_ca for mTLS.
+    # tls:
+    #   cert: "/etc/iec104-shield/server.crt"
+    #   key: "/etc/iec104-shield/server.key"
+    #   client_ca: "/etc/iec104-shield/clients-ca.crt"
     command_policy:
       default: deny
       rules:
@@ -187,6 +192,35 @@ configuration. `listen_addr`, `device_addr`, and adding or removing a device
 are reported as restart-only. Flags mode has no file to re-read, so SIGHUP is
 a logged no-op.
 
+## TLS on the master leg
+
+IEC 62351-3 TLS terminates on the master-facing listener; the RTU leg stays
+plaintext for the retrofit case. The proxy must terminate TLS, not tunnel it,
+because it has to see and authorize the command.
+
+```yaml
+    tls:
+      cert: "/etc/iec104-shield/server.crt"
+      key: "/etc/iec104-shield/server.key"
+      client_ca: "/etc/iec104-shield/clients-ca.crt"  # optional mTLS
+```
+
+or, in flags mode:
+
+```sh
+./bin/iec104-shield gateway \
+  --listen 0.0.0.0:2404 --device 10.0.0.10:2404 \
+  --tls-cert /etc/iec104-shield/server.crt \
+  --tls-key /etc/iec104-shield/server.key
+```
+
+TLS 1.2 is the minimum. With `client_ca`, a client certificate signed by that
+CA is required. The handshake completes **before** the proxy dials the RTU, so
+a plain or unauthenticated client cannot cause an upstream connection. TLS is
+listener-bound: changing it needs a restart, not SIGHUP. The upstream TLS leg
+(option C in [docs/iec62351-posture.md](docs/iec62351-posture.md)) is not
+implemented yet.
+
 ## Address takeover
 
 ```
@@ -205,7 +239,7 @@ no bypass in v0.1.
 ## What is not implemented yet
 
 - IEC 60870-5-101 serial and serial-to-IP converters.
-- IEC 62351-3 TLS and IEC 62351-5 authentication.
+- IEC 62351-5 ASDU authentication and the upstream TLS leg.
 - DNP3.
 - Redundancy groups, multi-master multiplexing and HA.
 - File-transfer content inspection.
@@ -242,8 +276,10 @@ in front of it, and drives it with an independent master. It checks:
 - a denied command gets a negative confirmation and does **not** reach the RTU;
 - after the proxy stops, the old address refuses connections.
 
-`smoke-reload` proves the real binary applies a rewritten policy on SIGHUP and
-keeps the running policy when the new file is invalid.
+A third run points the second stack at the TLS listener and checks the same
+commands, plus a plain client being refused. `smoke-reload` proves the real
+binary applies a rewritten policy on SIGHUP and keeps the running policy when
+the new file is invalid.
 
 See [TESTING.md](TESTING.md).
 

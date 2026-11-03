@@ -6,6 +6,8 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"flag"
 	"fmt"
 	"net"
@@ -27,6 +29,8 @@ func main() {
 	commonAddr := flag.Uint("ca", 1, "common address")
 	allowIOA := flag.Uint("allow-ioa", 1000, "allowed command IOA")
 	denyIOA := flag.Uint("deny-ioa", 2000, "command IOA expected to be denied")
+	tlsMode := flag.Bool("tls", false, "connect to the proxy over TLS")
+	tlsCA := flag.String("tls-ca", "", "PEM CA bundle for the proxy certificate")
 	flag.Parse()
 
 	ca := uint16(*commonAddr)
@@ -34,9 +38,9 @@ func main() {
 	case "server":
 		runServer(*host, *port, ca)
 	case "client":
-		runClient(*host, *port, ca, uint32(*allowIOA), uint32(*denyIOA))
+		runClient(*host, *port, ca, uint32(*allowIOA), uint32(*denyIOA), *tlsMode, *tlsCA)
 	case "sbo-client":
-		runSBOClient(*host, *port, ca, uint32(*allowIOA))
+		runSBOClient(*host, *port, ca, uint32(*allowIOA), *tlsMode, *tlsCA)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown mode %q\n", *mode)
 		os.Exit(2)
@@ -119,10 +123,35 @@ func printASDU(a *asdu.ASDU) {
 	}
 }
 
-func dial(host string, port int) (*client.Client, context.Context, context.CancelFunc) {
+func tlsConfig(caFile string) (*tls.Config, error) {
+	cfg := &tls.Config{MinVersion: tls.VersionTLS12, ServerName: "127.0.0.1"}
+	if caFile != "" {
+		pem, err := os.ReadFile(caFile)
+		if err != nil {
+			return nil, err
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(pem) {
+			return nil, fmt.Errorf("no certificates in %s", caFile)
+		}
+		cfg.RootCAs = pool
+	}
+	return cfg, nil
+}
+
+func dial(host string, port int, useTLS bool, caFile string) (*client.Client, context.Context, context.CancelFunc) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	c, err := client.Dial(ctx, fmt.Sprintf("%s:%d", host, port),
-		client.WithHandler(client.HandlerFunc(printASDU)))
+	opts := []client.Option{client.WithHandler(client.HandlerFunc(printASDU))}
+	if useTLS {
+		cfg, err := tlsConfig(caFile)
+		if err != nil {
+			fmt.Printf("TLS_CONFIG_ERROR %v\n", err)
+			cancel()
+			os.Exit(1)
+		}
+		opts = append(opts, client.WithTLS(cfg))
+	}
+	c, err := client.Dial(ctx, fmt.Sprintf("%s:%d", host, port), opts...)
 	if err != nil {
 		fmt.Printf("CONNECT_ERROR %v\n", err)
 		cancel()
@@ -131,8 +160,8 @@ func dial(host string, port int) (*client.Client, context.Context, context.Cance
 	return c, ctx, cancel
 }
 
-func runClient(host string, port int, ca uint16, allowIOA, denyIOA uint32) {
-	c, ctx, cancel := dial(host, port)
+func runClient(host string, port int, ca uint16, allowIOA, denyIOA uint32, useTLS bool, caFile string) {
+	c, ctx, cancel := dial(host, port, useTLS, caFile)
 	defer cancel()
 	defer c.Close()
 
@@ -156,8 +185,8 @@ func runClient(host string, port int, ca uint16, allowIOA, denyIOA uint32) {
 	fmt.Println("DONE")
 }
 
-func runSBOClient(host string, port int, ca uint16, ioa uint32) {
-	c, ctx, cancel := dial(host, port)
+func runSBOClient(host string, port int, ca uint16, ioa uint32, useTLS bool, caFile string) {
+	c, ctx, cancel := dial(host, port, useTLS, caFile)
 	defer cancel()
 	defer c.Close()
 

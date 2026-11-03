@@ -17,6 +17,7 @@ successful forwarding.
 | Control frames | STARTDT/STOPDT/TESTFR relayed end to end |
 | Reload | SIGHUP applies policy/allow-list/limits to running sessions; a bad file keeps the running config |
 | Shielding | Token-bucket rate limit and shared pacing for master-to-outstation I-frames; RTU data is unaffected |
+| TLS | Master-facing TLS termination, mTLS, plain-client rejection, handshake before the upstream dial |
 | Independent peer | Two separate stacks (`wendy512/iec104` and `otfabric/go-iec104`), neither end using this proxy's parser |
 | Real binary | `validate`, `selftest`, `gateway`, YAML and flags modes |
 
@@ -59,6 +60,8 @@ It asserts:
   and reach the outstation with the S/E bit intact;
 - a denied command (IOA 2000) gets a negative confirmation and does **not**
   reach the outstation;
+- the same scenario works over master-facing TLS, and a plain client is
+  refused;
 - after the proxy stops, the old address refuses connections.
 
 The peers live in `test/peers/iec104peer` and `test/peers/iec104peer2` as
@@ -94,7 +97,7 @@ The overall figure excludes the `covercheck` tooling package. Raise a floor
 when a package improves; add a test rather than lowering it.
 
 Current measured production coverage is about 83% overall, with the proxy at
-about 88%, policy at about 96%, parser at about 74%, config at about 79%,
+about 88%, policy at about 96%, parser at about 74%, config at about 76%,
 observability at about 93%, and the command at about 74%.
 
 ## Focused mutation checks
@@ -116,7 +119,7 @@ was run, the test failed, and the file was restored.
 The single-machine suite cannot reproduce:
 
 - a physical RTU's timing, retransmission and vendor profile;
-- IEC 62351 TLS or authentication;
+- IEC 62351-5 ASDU authentication and the upstream TLS leg;
 - redundant channels and multi-master behavior;
 - real ARP/NDP takeover, gratuitous ARP, duplicate-address detection, switch
   CAM, or privileged port 2404;

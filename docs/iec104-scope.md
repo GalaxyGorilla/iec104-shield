@@ -77,6 +77,9 @@ negative confirmation itself.
   type whose objects cannot be parsed is always refused.
 - Denied commands get a negative activation confirmation (COT 7 + P/N) and
   never reach the RTU.
+- Master-facing IEC 62351-3 TLS termination (option B), with optional mTLS
+  via `client_ca`. The RTU leg stays plaintext; the handshake completes
+  before the upstream dial.
 - Shared token-bucket rate limiting (`rate_per_sec`) and minimum forwarding
   gap (`min_interval_ms`) for master-to-outstation I-frames; an over-rate
   request gets a negative confirmation and never reaches the RTU. RTU-to-master
@@ -99,7 +102,8 @@ negative confirmation itself.
 ## Explicit non-goals for v0.1
 
 - IEC 60870-5-101 serial and serial-to-IP gateways.
-- IEC 62351-3 TLS and IEC 62351-5 application-layer authentication.
+- Upstream IEC 62351-3 TLS (option C) and IEC 62351-5 application-layer
+  authentication. Master-leg TLS is implemented.
 - DNP3 Secure Authentication / IEEE 1815.
 - Redundancy groups and multi-master arbitration.
 - Full IEC-104 conformance (t2/t3/w tuning, file transfer, all private types).

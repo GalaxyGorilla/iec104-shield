@@ -37,6 +37,14 @@ devices:
     t1_ms: 15000
     k: 12
 
+    # Terminate TLS on the master-facing listener (IEC 62351-3 option B).
+    # The RTU leg stays plaintext. Add client_ca to require mTLS. TLS is
+    # listener-bound, so a change needs a restart, not a SIGHUP.
+    # tls:
+    #   cert: "/etc/iec104-shield/server.crt"
+    #   key: "/etc/iec104-shield/server.key"
+    #   client_ca: "/etc/iec104-shield/clients-ca.crt"
+
     # Shielding for a fragile RTU. rate_per_sec bounds forwarded
     # master-to-outstation I-frames across all masters; an over-rate request
     # gets a negative activation confirmation and never reaches the RTU.

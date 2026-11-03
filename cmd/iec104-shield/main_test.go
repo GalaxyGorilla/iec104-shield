@@ -394,3 +394,14 @@ func TestFlagsRateLimit(t *testing.T) {
 		t.Fatalf("rate fields = %+v", d)
 	}
 }
+
+func TestFlagsTLSRequiresPair(t *testing.T) {
+	c := parseFlags(t,
+		"--listen", "127.0.0.1:2404",
+		"--device", "127.0.0.1:2405",
+		"--tls-cert", "/nonexistent/cert.pem",
+	)
+	if _, err := flagsConfig(c); err == nil || !strings.Contains(err.Error(), "cert and key") {
+		t.Fatalf("cert without key: %v", err)
+	}
+}

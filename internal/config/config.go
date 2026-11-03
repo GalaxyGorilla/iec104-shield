@@ -5,6 +5,8 @@
 package config
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
@@ -48,6 +50,11 @@ type Device struct {
 	// stateful, so the proxy opens one upstream connection per client.
 	MaxClients int `yaml:"max_clients"`
 
+	// TLS, when set, terminates TLS on the master-facing listener. The
+	// outstation leg stays plaintext (the retrofit case). With ClientCA set,
+	// clients must present a certificate signed by that CA (mTLS).
+	TLS *TLSConfig `yaml:"tls"`
+
 	// ReadOnly blocks every write-class ASDU (commands, clock sync,
 	// reset, parameter and file transfer). Interrogation, counter
 	// interrogation, read and test commands remain available.
@@ -78,6 +85,16 @@ type Device struct {
 	// shared across all masters, to protect a fragile RTU from a polling
 	// storm. 0 = disabled.
 	MinIntervalMs int `yaml:"min_interval_ms"`
+}
+
+// TLSConfig configures master-facing TLS termination for a device.
+type TLSConfig struct {
+	// Cert and Key are the server certificate/key pair (PEM files).
+	Cert string `yaml:"cert"`
+	Key  string `yaml:"key"`
+	// ClientCA, when set, is a PEM file of CA certificates; clients must
+	// present a certificate signed by one of them (mTLS).
+	ClientCA string `yaml:"client_ca"`
 }
 
 // CommandPolicy is the scoped command policy. Default is the verdict for a
@@ -346,6 +363,11 @@ func (d *Device) validate(i int, seen map[string]string) error {
 	if d.RatePerSec < 0 || d.MinIntervalMs < 0 {
 		return fail("rate_per_sec and min_interval_ms must not be negative")
 	}
+	if d.TLS != nil {
+		if err := d.TLS.validate(); err != nil {
+			return fail("tls: %v", err)
+		}
+	}
 	if d.K < 1 || d.K > 32767 {
 		return fail("k %d outside 1..32767", d.K)
 	}
@@ -359,6 +381,26 @@ func (d *Device) validate(i int, seen map[string]string) error {
 	}
 	if _, err := d.CompilePolicy(); err != nil {
 		return fail("command_policy: %v", err)
+	}
+	return nil
+}
+
+func (t *TLSConfig) validate() error {
+	if t.Cert == "" || t.Key == "" {
+		return errors.New("cert and key are required together")
+	}
+	if _, err := tls.LoadX509KeyPair(t.Cert, t.Key); err != nil {
+		return fmt.Errorf("cert/key: %w", err)
+	}
+	if t.ClientCA != "" {
+		pem, err := os.ReadFile(t.ClientCA)
+		if err != nil {
+			return fmt.Errorf("client_ca: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(pem) {
+			return fmt.Errorf("client_ca %s: no valid certificates found", t.ClientCA)
+		}
 	}
 	return nil
 }

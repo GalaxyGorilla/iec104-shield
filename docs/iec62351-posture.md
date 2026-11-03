@@ -1,8 +1,8 @@
 # IEC 62351 posture
 
-**Status:** design decision for the next protocol slice, not implemented in
-v0.1. This note exists so the TLS/authentication question is answered before
-code is written.
+**Status:** option B (terminate TLS on the master leg) is implemented in
+v0.1. Option C (upstream TLS) and IEC 62351-5 are not. This note records the
+decision and the remaining work.
 
 ## The constraint
 
@@ -66,14 +66,16 @@ gap; the roadmap records it as a later phase.
 
 ## Acceptance criteria for option B
 
-1. A TLS master can interrogate and command through the proxy.
-2. A plain master is refused when TLS is required.
-3. mTLS is enforced when `client_ca` is configured.
-4. A bad certificate or wrong CA fails closed and is audited.
-5. The command policy and negative-confirmation behaviour are unchanged.
-6. `validate` rejects missing/unreadable certificate files.
-7. `selftest` uses the configured TLS path.
-8. Interop runs with at least one independent master over TLS.
+| # | Criterion | Status |
+|---|---|---|
+| 1 | A TLS master can interrogate and command through the proxy | met (`TestTLSGateway`, interop) |
+| 2 | A plain master is refused when TLS is required | met (`TestTLSGateway`, interop) |
+| 3 | mTLS is enforced when `client_ca` is configured | met (`TestTLSGatewayRequiresClientCertificate`) |
+| 4 | A bad certificate or wrong CA fails closed and is audited | met (handshake failure audit `tls_handshake`) |
+| 5 | Command policy and negative confirmation are unchanged | met (same proxy path) |
+| 6 | `validate` rejects missing/unreadable certificate files | met (`TestTLSValidation`, flags test) |
+| 7 | `selftest` uses the configured TLS path | not applicable to option B: selftest probes the plaintext RTU leg; it must use TLS for option C |
+| 8 | Interop runs with at least one independent master over TLS | met (`otfabric-tls` scenario) |
 
 ## Open questions for the design partner
 
