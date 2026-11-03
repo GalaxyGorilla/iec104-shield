@@ -1,0 +1,9 @@
+bin/
+dist/
+.venv/
+*.out
+*.test
+coverage.out
+
+# accidental root build output
+/iec104-shield

@@ -1,0 +1,49 @@
+# iec104-shield — example gateway.
+#
+# The proxy owns the address the master already uses. The RTU is moved to
+# device_addr behind the proxy. Denied commands get a negative activation
+# confirmation and never reach the RTU.
+
+devices:
+  - name: substation-rtu
+    listen_addr: "0.0.0.0:2404"
+    device_addr: "10.0.0.10:2404"
+    allow: ["10.0.0.0/24"]
+    max_clients: 2
+
+    # Fine-grained command policy. Remove this block to deny every write by
+    # default, or set read_only: true for the coarse "monitoring only" mode.
+    command_policy:
+      default: deny
+      rules:
+        - types: [45, 46]          # single command, double command
+          common_address: 1
+          ioa: "1000-2000"
+          select: execute
+          action: allow
+        - types: [48, 49, 50]      # setpoints, normalised/scaled/float
+          common_address: 1
+          ioa: "3000-3010"
+          select: execute
+          action: allow
+
+    # Refuse master-to-RTU types the proxy cannot classify. Set true only if
+    # the site uses private command types and the risk is accepted.
+    allow_unknown_types: false
+
+    # One upstream session per master. Set to 1 for an RTU that accepts a
+    # single TCP connection.
+    dial_timeout_ms: 5000
+    t1_ms: 15000
+    k: 12
+
+log:
+  level: info
+  format: console
+
+metrics:
+  addr: "127.0.0.1:9204"
+
+audit:
+  file: "/var/log/iec104-shield/audit.jsonl"
+  max_mb: 64
