@@ -26,6 +26,13 @@ make acceptance    # verify + interop with INTEROP_REQUIRED=1
 make cover         # per-package coverage floors
 ```
 
+Parser fuzzing is available directly:
+
+```sh
+go test ./internal/iec104 -run '^$' -fuzz FuzzParseFrame -fuzztime 10s
+go test ./internal/iec104 -run '^$' -fuzz FuzzParseASDU -fuzztime 10s
+```
+
 ## Independent interop
 
 `scripts/interop-iec104.sh` starts:

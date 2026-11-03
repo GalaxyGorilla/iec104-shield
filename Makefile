@@ -6,7 +6,7 @@ GO     ?= go
 VERSION ?= 0.1.0
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: all build test fmt-check vet staticcheck govulncheck race verify acceptance peers interop interop-required cover release release-all release-assets sbom vulnscan security clean
+.PHONY: all build test fmt-check vet staticcheck govulncheck race verify acceptance peers interop interop-required cover fuzz release release-all release-assets sbom vulnscan security clean
 
 all: build
 
@@ -55,6 +55,11 @@ interop: build
 
 interop-required: build
 	INTEROP_REQUIRED=1 sh scripts/interop-iec104.sh
+
+# fuzz runs the parser fuzz targets for a short, reproducible interval.
+fuzz:
+	$(GO) test ./internal/iec104 -run '^$$' -fuzz FuzzParseFrame -fuzztime 10s
+	$(GO) test ./internal/iec104 -run '^$$' -fuzz FuzzParseASDU -fuzztime 10s
 
 # cover measures statement coverage and enforces the per-package floors.
 cover:
