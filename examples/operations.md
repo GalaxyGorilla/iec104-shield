@@ -114,8 +114,17 @@ the site's availability plan.
 5. Run `selftest` and one controlled command from the real master.
 6. Keep the previous binary and config for rollback.
 
-The v0.1 release has no signed-update channel yet; verify the checksum and
-SBOM from the release before installing.
+Verify the release before installing:
+
+```sh
+make release-verify
+# or, on the release bundle:
+cd dist && shasum -a 256 -c SHA256SUMS
+gpg --verify SHA256SUMS.asc SHA256SUMS
+```
+
+The v0.1 release has signing and verification hooks but no automatic update
+channel yet; an operator still decides when to install.
 
 ## 8. Troubleshooting
 

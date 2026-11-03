@@ -107,8 +107,8 @@ proof, SIGHUP reload
 of the command policy, allow-list and limits, and token-bucket rate limiting
 plus shared pacing for master-to-outstation I-frames. A listener or
 outstation address change is reported as restart-only. Packaging includes a
-hardened systemd unit with SIGHUP reload, SBOM/grype release gates, and a CRA
-technical-file outline. `docs/conformance-matrix.md` maps behaviour to tests
+hardened systemd unit with SIGHUP reload, SBOM/grype release gates,
+signing/verification hooks, and a CRA technical-file outline. `docs/conformance-matrix.md` maps behaviour to tests
 and names the remaining lab gaps. IEC 62351-3 TLS is implemented on both legs;
 the next protocol slice is IEC 62351-5 (`docs/iec62351-posture.md`); the HA
 shape is active/standby without state replication (`docs/ha-design.md`). It is not yet

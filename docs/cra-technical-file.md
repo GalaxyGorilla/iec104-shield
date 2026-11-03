@@ -97,8 +97,9 @@ master ──► old RTU address ──► iec104-shield ──► RTU at new ad
   blocks release.
 - Dependency updates are ordinary Go module bumps with the full race suite,
   staticcheck, govulncheck and both interop peers re-run.
-- Signed releases and an update-signing key are still to be added before a
-  production claim.
+- Signing and verification hooks exist (`make release-sign`,
+  `make release-verify`); key management and an automatic update channel are
+  still to be added before a production claim.
 
 ## 9. Known gaps before a conformity claim
 
@@ -107,7 +108,9 @@ master ──► old RTU address ──► iec104-shield ──► RTU at new ad
 - No physical RTU lab or utility conformance suite.
 - No real ARP/NDP takeover validation; the current proof is loopback only.
 - No HA pair or state replication.
-- No signed release artefacts or reproducible-build attestation.
+- Release signing/verification hooks exist, but key management and an
+  automatic update channel are not implemented; no reproducible-build
+  attestation yet.
 - No formal penetration test or independent security assessment.
 - CRA class II is a working assumption, not a legal determination.
 

@@ -286,6 +286,9 @@ make smoke-reload   # real binary: deny -> SIGHUP -> allow, then a bad file
 make acceptance     # verify + interop + smoke-reload (no skips)
 make cover          # per-package coverage floors
 make release-all    # linux amd64/arm64/armv7
+make release-assets # binaries + SPDX/CycloneDX SBOMs + SHA256SUMS
+make release-sign   # GPG-sign checksums/SBOMs (RELEASE_GPG_KEY=...)
+make release-verify # verify checksums and detached signatures
 ```
 
 The interop suite runs twice, with `wendy512/iec104` and `otfabric/go-iec104`

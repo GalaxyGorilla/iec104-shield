@@ -139,7 +139,8 @@ peer behavior, not line coverage. Work in this order.
 - Operations runbook in `examples/operations.md`: install, validate, SIGHUP
   reload, shielding tuning, audit/metrics, fail-closed behaviour, upgrade and
   troubleshooting.
-- Signed release artefacts and an update-signing key remain in Next.
+- Signing and verification hooks (`make release-sign`, `make release-verify`)
+  are in place. Key management and an automatic update channel remain in Next.
 
 ## Next
 
@@ -153,6 +154,6 @@ peer behavior, not line coverage. Work in this order.
    service address, passive standby, no state replication, no command replay.
 5. **DNP3.** Only after IEC-104 has a design partner; separate protocol
    engine, not a port of this one.
-6. **Signed releases and update channel.** Sign binaries and SBOMs, publish
-   checksums, and define how an appliance verifies an update before installing
-   it.
+6. **Release key management and update channel.** The signing/verification
+   hooks exist; define key custody, publish signed checksums/SBOMs, and define
+   how an appliance verifies and installs an update.

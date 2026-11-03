@@ -6,7 +6,7 @@ GO     ?= go
 VERSION ?= 0.1.0
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: all build test fmt-check vet staticcheck govulncheck race verify acceptance peers interop interop-required smoke-reload smoke-reload-required cover fuzz release release-all release-assets sbom vulnscan security clean
+.PHONY: all build test fmt-check vet staticcheck govulncheck race verify acceptance peers interop interop-required smoke-reload smoke-reload-required cover fuzz release release-all release-assets release-sign release-verify sbom vulnscan security clean
 
 all: build
 
@@ -100,6 +100,15 @@ release-assets: release-all
 		$(BINARY)-linux-arm64 $(BINARY)-linux-arm64.cdx.json $(BINARY)-linux-arm64.spdx.json \
 		$(BINARY)-linux-armv7 $(BINARY)-linux-armv7.cdx.json $(BINARY)-linux-armv7.spdx.json > SHA256SUMS
 	@echo "release assets in dist/ (binaries, SBOMs, SHA256SUMS)"
+
+# release-sign signs the release checksums and SBOMs with a GPG key.
+# Set RELEASE_GPG_KEY to the key id or fingerprint. Missing gpg exits 77.
+release-sign: release-assets
+	sh scripts/release-sign.sh
+
+# release-verify checks SHA256SUMS and any detached signatures in dist/.
+release-verify:
+	sh scripts/verify-release.sh
 
 # sbom generates SPDX + CycloneDX SBOMs for the release binary into dist/.
 sbom: release
