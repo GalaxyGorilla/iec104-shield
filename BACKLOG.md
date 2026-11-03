@@ -66,6 +66,18 @@ peer behavior, not line coverage. Work in this order.
   proves deny -> SIGHUP -> allow and broken-file retention with the real
   binary; `make acceptance` runs it with no skips.
 
+## Done — shielding pass
+
+- `rate_per_sec`: token bucket for master-to-outstation I-frames, shared
+  across all masters on a device. An over-rate request gets a negative
+  activation confirmation, is audited with reason `rate_limit`, and never
+  reaches the RTU. RTU-to-master monitoring data is not limited.
+- `min_interval_ms`: shared minimum gap between forwarded master I-frames,
+  to protect a fragile RTU from a polling storm.
+- Both are in the reloadable runtime snapshot, validated as non-negative,
+  exposed as `--rate-per-sec` / `--min-interval-ms`, and covered by unit and
+  end-to-end tests (burst denial, refill, pacing gap, reload).
+
 ## Next
 
 1. **Real RTU lab.** One physical or vendor simulator: interrogation,
@@ -80,11 +92,9 @@ peer behavior, not line coverage. Work in this order.
    to an in-flight command during failover.
 6. **Multi-master.** If an RTU accepts one connection, either enforce
    `max_clients: 1` or design safe session multiplexing.
-7. **Rate limiting and pacing.** Protect a fragile RTU from polling storms
-   and bound per-master request rates, as the other Shield proxies do.
-8. **File transfer.** Inspect or explicitly block file/log transfer types;
+7. **File transfer.** Inspect or explicitly block file/log transfer types;
    v0.1 blocks them in read-only and otherwise treats them as writes.
-9. **DNP3.** Only after IEC-104 has a design partner; separate protocol
+8. **DNP3.** Only after IEC-104 has a design partner; separate protocol
    engine, not a port of this one.
-10. **Packaging.** systemd hardening, SBOM, signed releases, CRA technical
-    documentation.
+9. **Packaging.** systemd hardening, SBOM, signed releases, CRA technical
+   documentation.

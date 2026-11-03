@@ -68,6 +68,16 @@ type Device struct {
 	// K is the maximum number of unacknowledged I-frames the proxy sends
 	// to one peer. Default 12 (the IEC-104 default).
 	K int `yaml:"k"`
+
+	// RatePerSec bounds master-to-outstation I-frames forwarded by this
+	// gateway, shared across all masters. 0 = unlimited. An over-rate
+	// request gets a negative activation confirmation and never reaches the
+	// RTU; monitoring data from the RTU is not limited.
+	RatePerSec int `yaml:"rate_per_sec"`
+	// MinIntervalMs is the minimum gap between forwarded master I-frames,
+	// shared across all masters, to protect a fragile RTU from a polling
+	// storm. 0 = disabled.
+	MinIntervalMs int `yaml:"min_interval_ms"`
 }
 
 // CommandPolicy is the scoped command policy. Default is the verdict for a
@@ -332,6 +342,9 @@ func (d *Device) validate(i int, seen map[string]string) error {
 	}
 	if d.DialTimeoutMs < 0 || d.IdleTimeoutMs < 0 || d.T1Ms < 0 {
 		return fail("timeouts must not be negative")
+	}
+	if d.RatePerSec < 0 || d.MinIntervalMs < 0 {
+		return fail("rate_per_sec and min_interval_ms must not be negative")
 	}
 	if d.K < 1 || d.K > 32767 {
 		return fail("k %d outside 1..32767", d.K)

@@ -14,6 +14,7 @@ successful forwarding.
 | Fail-closed | Upstream dial failure closes the front connection; stopping the proxy removes the old address |
 | Control frames | STARTDT/STOPDT/TESTFR relayed end to end |
 | Reload | SIGHUP applies policy/allow-list/limits to running sessions; a bad file keeps the running config |
+| Shielding | Token-bucket rate limit and shared pacing for master-to-outstation I-frames; RTU data is unaffected |
 | Independent peer | `wendy512/iec104` master and outstation, neither end using this proxy's parser |
 | Real binary | `validate`, `selftest`, `gateway`, YAML and flags modes |
 
@@ -71,6 +72,16 @@ Unit tests pin the same contract without signals: policy and
 `allow_unknown_types` apply to an already established session, allow-list and
 `max_clients` apply to new connections, a failed compile keeps the previous
 runtime, and listener/device-address changes are reported as restart-only.
+
+## Shielding limits
+
+`rate_per_sec` is a token bucket shared by every master on a device. A request
+over the limit gets a negative activation confirmation and is never forwarded,
+so the master's sequence space stays aligned. `min_interval_ms` holds a shared
+gate between forwarded master I-frames. Tests use a fake clock for the bucket
+and timestamp the fake outstation for the pacing gap; a reload test proves a
+new limit is part of the swapped snapshot. RTU-to-master monitoring data is
+neither rate-limited nor paced.
 
 ## Coverage gate
 

@@ -267,3 +267,50 @@ func TestReloadWarnsAboutRestartOnlyChanges(t *testing.T) {
 		t.Fatalf("warnings = %v", warnings)
 	}
 }
+
+func TestReloadEnablesRateLimit(t *testing.T) {
+	fake := startFake(t, replyCommand)
+	defer fake.close()
+	dev := testDevice(fake.addr())
+	dev.ListenAddr = freeTCPAddr(t)
+	dev.CommandPolicy = &config.CommandPolicy{Default: "allow"}
+	r, _ := startReloadRunner(t, dev)
+
+	m := dialMaster(t, dev.ListenAddr)
+	defer m.close()
+	for i := 0; i < 2; i++ {
+		if err := m.sendI(singleCommand(1, 1000, false, true)); err != nil {
+			t.Fatal(err)
+		}
+		if con, err := m.readI(); err != nil || con.PN {
+			t.Fatalf("command %d before reload: %+v, %v", i, con, err)
+		}
+	}
+
+	dev.RatePerSec = 1
+	if warnings := r.Reload(reloadConfig(t, dev)); len(warnings) != 0 {
+		t.Fatalf("reload warnings: %v", warnings)
+	}
+
+	// The reload creates a fresh bucket: one request passes, the next is
+	// denied. This proves the limiter is part of the swapped snapshot.
+	if err := m.sendI(singleCommand(1, 1000, false, true)); err != nil {
+		t.Fatal(err)
+	}
+	if con, err := m.readI(); err != nil || con.PN {
+		t.Fatalf("first command after reload: %+v, %v", con, err)
+	}
+	if err := m.sendI(singleCommand(1, 1000, false, true)); err != nil {
+		t.Fatal(err)
+	}
+	neg, err := m.readI()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !neg.PN {
+		t.Fatalf("second command after reload was not rate-limited: %+v", neg)
+	}
+	if got := len(fake.received()); got != 3 {
+		t.Fatalf("outstation received %d commands, want 3", got)
+	}
+}

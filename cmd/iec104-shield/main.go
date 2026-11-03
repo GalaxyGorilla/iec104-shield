@@ -69,6 +69,8 @@ type cliFlags struct {
 	idleTimeout  *int
 	t1           *int
 	k            *int
+	ratePerSec   *int
+	minInterval  *int
 	metricsAddr  *string
 	logLevel     *string
 	logFormat    *string
@@ -92,6 +94,8 @@ func register(fs *pflag.FlagSet) cliFlags {
 	c.idleTimeout = fs.Int("idle-timeout-ms", 0, "close an idle master connection after this many ms (0 = disabled)")
 	c.t1 = fs.Int("t1-ms", 0, "unacknowledged I-frame timeout in ms (0 = default 15000)")
 	c.k = fs.Int("k", 0, "max unacknowledged I-frames toward one peer (0 = default 12)")
+	c.ratePerSec = fs.Int("rate-per-sec", 0, "max master-to-outstation I-frames per second, shared across masters (0 = unlimited)")
+	c.minInterval = fs.Int("min-interval-ms", 0, "minimum gap between forwarded master I-frames in ms (0 = disabled)")
 	c.metricsAddr = fs.String("metrics-addr", "", "Prometheus metrics listen address (e.g. 127.0.0.1:9204)")
 	c.logLevel = fs.String("log-level", "info", "log level: debug, info, warn, error")
 	c.logFormat = fs.String("log-format", "console", "log format: console or json")
@@ -119,6 +123,8 @@ func flagsConfig(c cliFlags) (*config.Config, error) {
 		IdleTimeoutMs:     *c.idleTimeout,
 		T1Ms:              *c.t1,
 		K:                 *c.k,
+		RatePerSec:        *c.ratePerSec,
+		MinIntervalMs:     *c.minInterval,
 	}
 	if *c.commandDef != "" || len(*c.commandRules) > 0 {
 		def := *c.commandDef

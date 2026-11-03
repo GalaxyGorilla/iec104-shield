@@ -55,6 +55,8 @@ type gatewayRuntime struct {
 	idleTimeout       time.Duration
 	t1                time.Duration
 	k                 int
+	lim               *rateLimiter
+	pace              time.Duration
 }
 
 func newGatewayRuntime(dev config.Device) (gatewayRuntime, error) {
@@ -75,6 +77,8 @@ func newGatewayRuntime(dev config.Device) (gatewayRuntime, error) {
 		idleTimeout:       time.Duration(dev.IdleTimeoutMs) * time.Millisecond,
 		t1:                time.Duration(dev.T1Ms) * time.Millisecond,
 		k:                 dev.K,
+		lim:               newRateLimiter(dev.RatePerSec),
+		pace:              time.Duration(dev.MinIntervalMs) * time.Millisecond,
 	}, nil
 }
 
@@ -126,6 +130,12 @@ type Gateway struct {
 
 	clients atomic.Int64
 
+	// paceMu and lastForward enforce the shared minimum gap between
+	// forwarded master I-frames. The gap is per gateway (per RTU), not per
+	// master: the RTU sees every session on its own upstream connection.
+	paceMu      sync.Mutex
+	lastForward time.Time
+
 	connsMu sync.Mutex
 	conns   map[net.Conn]struct{}
 	wg      sync.WaitGroup
@@ -167,6 +177,35 @@ func (g *Gateway) setRuntime(rt gatewayRuntime) {
 	g.rtMu.Lock()
 	defer g.rtMu.Unlock()
 	g.rt = rt
+}
+
+// pace blocks until the shared minimum gap since the last forwarded master
+// I-frame has elapsed. Holding paceMu across the wait is deliberate: it is
+// the serialization point the RTU sees, and it keeps two masters from both
+// deciding the gap is free and forwarding together. The wait is bounded by
+// the session's done channel, so a closing session cannot stall shutdown.
+func (g *Gateway) pace(rt gatewayRuntime, done <-chan struct{}) error {
+	g.paceMu.Lock()
+	defer g.paceMu.Unlock()
+	now := time.Now()
+	if rt.pace <= 0 {
+		g.lastForward = now
+		return nil
+	}
+	if !g.lastForward.IsZero() {
+		if wait := rt.pace - now.Sub(g.lastForward); wait > 0 {
+			timer := time.NewTimer(wait)
+			defer timer.Stop()
+			select {
+			case <-timer.C:
+				now = time.Now()
+			case <-done:
+				return errSessionClosed
+			}
+		}
+	}
+	g.lastForward = now
+	return nil
 }
 
 // Name returns the configured device name.
@@ -443,6 +482,28 @@ func (s *session) pump(src, dst *link, fromMaster bool) error {
 						return err
 					}
 					continue
+				}
+				// Rate limiting runs after policy: a denied command never
+				// consumes a token, and a rate-limited request is answered
+				// with a negative confirmation instead of being dropped
+				// (dropping an I-frame would desynchronise the master).
+				if !rt.lim.allow() {
+					neg := iec104.NegativeConfirmation(a)
+					if neg == nil {
+						return fmt.Errorf("iec104: cannot build negative confirmation")
+					}
+					if err := src.sendI(neg); err != nil {
+						return err
+					}
+					s.gw.met.IncDenied(s.gw.cfg.Name, "rate_limit")
+					s.gw.recordDenied(s.client, a, "rate_limit")
+					if err := src.sendS(ack); err != nil {
+						return err
+					}
+					continue
+				}
+				if err := s.gw.pace(rt, s.done); err != nil {
+					return err
 				}
 				s.gw.log.Debugf("iec104 gateway %s: forward master->device %s", s.gw.cfg.Name, a.Describe())
 				if err := dst.sendI(f.ASDU); err != nil {

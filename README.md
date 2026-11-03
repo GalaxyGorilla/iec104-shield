@@ -70,6 +70,9 @@ devices:
     device_addr: "10.0.0.10:2404"   # the RTU's new address behind the proxy
     allow: ["10.0.0.0/24"]
     max_clients: 2
+    # Protect a fragile RTU: bound forwarded requests and space them out.
+    rate_per_sec: 20
+    min_interval_ms: 50
     command_policy:
       default: deny
       rules:
@@ -161,6 +164,24 @@ Denied commands are answered with a negative activation confirmation and are
 not forwarded. The audit record names type, cause, common address, IOA,
 select/execute and the reason.
 
+## Shielding and reload
+
+`rate_per_sec` bounds master-to-outstation I-frames across all masters on a
+device. An over-rate request is answered with a negative activation
+confirmation and never reaches the RTU; it is audited with reason
+`rate_limit` and counted by the denied metric. `min_interval_ms` enforces a
+minimum gap between forwarded master I-frames. RTU-to-master monitoring data
+is not rate-limited or paced: the limit protects the RTU from polling storms,
+not the master from spontaneous data.
+
+`SIGHUP` re-reads `--config` and swaps the command policy, `read_only`,
+allow-list, `allow_unknown_types`, `max_clients`, timeouts, `t1`, `k`, rate
+limit and pacing as one atomic snapshot. Policy changes apply to an already
+established session on its next frame. A bad file keeps the running
+configuration. `listen_addr`, `device_addr`, and adding or removing a device
+are reported as restart-only. Flags mode has no file to re-read, so SIGHUP is
+a logged no-op.
+
 ## Address takeover
 
 ```
@@ -183,8 +204,6 @@ no bypass in v0.1.
 - DNP3.
 - Redundancy groups, multi-master multiplexing and HA.
 - File-transfer content inspection.
-- SIGHUP policy reload (the process logs a warning and keeps the running
-  config).
 - A full IEC-104 conformance suite.
 
 See [docs/iec104-scope.md](docs/iec104-scope.md) for the design reasoning and
@@ -197,7 +216,8 @@ make build          # bin/iec104-shield
 make test           # gofmt + race suite
 make verify         # build + race suite + vet
 make interop        # independent wendy512/iec104 master + outstation
-make acceptance     # verify + interop (peer required)
+make smoke-reload   # real binary: deny -> SIGHUP -> allow, then a bad file
+make acceptance     # verify + interop + smoke-reload (no skips)
 make cover          # per-package coverage floors
 make release-all    # linux amd64/arm64/armv7
 ```
@@ -205,10 +225,14 @@ make release-all    # linux amd64/arm64/armv7
 The interop suite starts an independent outstation, puts the proxy in front of
 it, and drives it with an independent master. It checks:
 
-- interrogation data crosses the proxy;
+- interrogation and spontaneous data cross the proxy;
 - an allowed command gets a positive confirmation and reaches the RTU;
+- select-before-operate select and execute are confirmed and forwarded;
 - a denied command gets a negative confirmation and does **not** reach the RTU;
 - after the proxy stops, the old address refuses connections.
+
+`smoke-reload` proves the real binary applies a rewritten policy on SIGHUP and
+keeps the running policy when the new file is invalid.
 
 See [TESTING.md](TESTING.md).
 

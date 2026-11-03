@@ -220,3 +220,35 @@ func TestCompileAllow(t *testing.T) {
 		t.Fatal("invalid allow entry accepted")
 	}
 }
+
+func TestDecodeRateLimit(t *testing.T) {
+	c, err := Decode(strings.NewReader(`
+devices:
+  - listen_addr: "127.0.0.1:2404"
+    device_addr: "127.0.0.1:2405"
+    rate_per_sec: 5
+    min_interval_ms: 100
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Devices[0].RatePerSec != 5 || c.Devices[0].MinIntervalMs != 100 {
+		t.Fatalf("rate fields = %+v", c.Devices[0])
+	}
+	if _, err := Decode(strings.NewReader(`
+devices:
+  - listen_addr: "127.0.0.1:2404"
+    device_addr: "127.0.0.1:2405"
+    rate_per_sec: -1
+`)); err == nil {
+		t.Fatal("negative rate_per_sec accepted")
+	}
+	if _, err := Decode(strings.NewReader(`
+devices:
+  - listen_addr: "127.0.0.1:2404"
+    device_addr: "127.0.0.1:2405"
+    min_interval_ms: -1
+`)); err == nil {
+		t.Fatal("negative min_interval_ms accepted")
+	}
+}

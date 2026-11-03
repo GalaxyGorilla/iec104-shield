@@ -377,3 +377,20 @@ devices:
 	}
 	reload(parseFlags(t, "--config", good), r, log)
 }
+
+func TestFlagsRateLimit(t *testing.T) {
+	c := parseFlags(t,
+		"--listen", "127.0.0.1:2404",
+		"--device", "127.0.0.1:2405",
+		"--rate-per-sec", "5",
+		"--min-interval-ms", "100",
+	)
+	cfg, err := flagsConfig(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := cfg.Devices[0]
+	if d.RatePerSec != 5 || d.MinIntervalMs != 100 {
+		t.Fatalf("rate fields = %+v", d)
+	}
+}

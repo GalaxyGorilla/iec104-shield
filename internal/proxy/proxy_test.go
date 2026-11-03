@@ -158,6 +158,7 @@ type fakeOutstation struct {
 	mu    sync.Mutex
 	conns map[net.Conn]struct{}
 	got   []iec104.ASDU
+	gotAt []time.Time
 	uGot  []iec104.UFunction
 }
 
@@ -216,6 +217,7 @@ func startFakeWithConnect(t *testing.T, handler func(*testPeer, iec104.ASDU), on
 						}
 						f.mu.Lock()
 						f.got = append(f.got, a)
+						f.gotAt = append(f.gotAt, time.Now())
 						f.mu.Unlock()
 						if handler != nil {
 							handler(p, a)
@@ -246,6 +248,12 @@ func (f *fakeOutstation) received() []iec104.ASDU {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]iec104.ASDU(nil), f.got...)
+}
+
+func (f *fakeOutstation) receivedAt() []time.Time {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]time.Time(nil), f.gotAt...)
 }
 
 func (f *fakeOutstation) uFrames() []iec104.UFunction {
